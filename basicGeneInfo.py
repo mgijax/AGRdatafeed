@@ -14,10 +14,6 @@
 # 
 # This script uses MouseMine webservices API.
 #
-# ISSUES:
-# - GeneSegments not included
-# - Pseudogenes have no homology or protein associations
-#
 
 import sys
 import json
