@@ -13,6 +13,8 @@ import sys
 
 from intermine.webservice import Service
 
+DAFHEADER = """!daf-version 0.1
+!Project_name: MGI"""
 #########
 # Constants for genotype Annotation record field names that are used in the
 #   multiple places
@@ -108,12 +110,6 @@ class OmimToDOfinder (object):
 class GenoToGeneFinder (object):
     # find rolled up gene(s) for a genotype to disease annotation
 
-    ### HMMM, seems like we are only using genotype ID to map to rolled up
-    # genes. Is it possible to have a genotype, say with 2 disease annot's
-    #        and both of those do not roll up to both those genes?
-    # I.e, is the roll up based only on the genotype, or can it be based on
-    #  the annotation itself?
-
     def __init__(self, service):
 	query = self.buildQuery(service)
 	self.buildMapping(query)
@@ -143,8 +139,9 @@ class GenoToGeneFinder (object):
     def buildMapping(self, query):
 
 	self.genoToGene = {}	# geneoToGene[genoID] == set(GeneIDs)
-				# in theory, should only be 1 causitive gene
-				#  per genotype annot, but allow a set for now.
+				# There can be multiple rolled up genes:
+				#  1 example: gene + transgene if the TG
+				#   expresses the gene.
 	for row in query.rows():
 	    genoID = row["ontologyAnnotations.evidence.baseAnnotations.subject.primaryIdentifier"]
 	    geneID = row["primaryIdentifier"]
@@ -186,20 +183,18 @@ def main(ids):
     geneFinder = GenoToGeneFinder(service)
     doFinder = OmimToDOfinder(service)
 
-    # print column headings
+    print DAFHEADER
     print '\t'.join( [col['colName'] for col in dafColumns] )
 
     genoAnnotQuery = buildGenoAnnotQuery(service, ids)
 
     for genoAnnotRow in genoAnnotQuery.rows():
-	#print '--------'
 	genoAnnot = genoAnnotRow.to_d()
 
 	### Clean up the genoAnnot
 	# shorter field names
 	OMIM_ID  = "Genotype.ontologyAnnotations.ontologyTerm.omimId"
 	PM_ID    = 'Genotype.ontologyAnnotations.evidence.publications.pubMedId'
-	#MGI_Jnum = 'Genotype.ontologyAnnotations.evidence.publications.mgiJnum'
 	MGI_Ref_ID = 'Genotype.ontologyAnnotations.evidence.publications.mgiId'
 
 	# rolled up genes
@@ -211,11 +206,10 @@ def main(ids):
 	omimID = "OMIM:" + str(genoAnnot[OMIM_ID])
 	DOIDs = doFinder.omimToDO(omimID)
 	if len(DOIDs) == 0:		# skip if no DO ID
-	    #print "skipping %s, OMIM: %s" % (genoID, omimID)
 	    continue
 	genoAnnot['DOIDs'] = '|'.join(DOIDs)
 
-	# J# if no PMID
+	# MGI reference ID if no PMID
 	pmID = str(genoAnnot[PM_ID])
 	refID = genoAnnot[MGI_Ref_ID]
 	genoAnnot['REF_ID'] = "PMID:" + pmID if pmID!='' and pmID!='None' \
