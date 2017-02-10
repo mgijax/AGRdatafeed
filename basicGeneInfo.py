@@ -22,6 +22,7 @@ import itertools
 import time
 import types
 import argparse
+from ConfigParser import ConfigParser
 
 # nonstandard dependencies
 
@@ -31,40 +32,20 @@ from intermine.webservice import Service
 
 
 #-----------------------------------
-# CONSTANTS
+# Load config
+cp = ConfigParser()
+cp.optionxform = str
+cp.read("config.cfg")
 
-# MouseMine service url
-#MOUSEMINEURL = "http://www.mousemine.org/mousemine/service"
-MOUSEMINEURL = "http://beta.mousemine.org/mousemine/service"
-
-# For generating a sample file
-SAMPLEIDS = [
-  "MGI:96677",	# Kit, your basic all American protein coding gene
-  "MGI:96449",	# Igh-7, a gene segment
-  "MGI:2685845",# Adgrd2-ps, a pseudogene
-  "MGI:5695867",# Twsn (twisty nose), a heritable phenotypic marker of unknown location
-  "MGI:87982",	# Akp1, syntenic on chromosome 1
-]
-
-#
-TAXONID = "10090"
-
-#
-MOUSEASSEMBLY = "GRCm38"
-
-# GeneLit url
-GENELITURL = "http://www.informatics.jax.org/reference/marker/%s?typeFilter=Literature"
-
-# for each xref provider name that we want to export, add an entry mapping our 
-# name to the AGR standard.
-#
-dataProviders = {
-  "Entrez Gene" : "NCBIGene",
-  "Ensembl Gene Model" : "Ensembl",
-}
-
-# Base URL for MyGene wiki pages
-MYGENEURL = "https://en.wikipedia.org/wiki/"
+MOUSEMINEURL	= cp.get("DEFAULT","MOUSEMINEURL")
+TAXONID		= cp.get("DEFAULT","TAXONID")
+MOUSEASSEMBLY	= cp.get("DEFAULT","MOUSEASSEMBLY")
+GENELITURL	= cp.get("DEFAULT","GENELITURL")
+MYGENEURL	= cp.get("DEFAULT","MYGENEURL")
+SAMPLEIDS	= cp.get("DEFAULT","SAMPLEIDS").split()
+dataProviders	= {}
+for n in cp.options("dataProviders"):
+    dataProviders[n] = cp.get("dataProviders", n)
 
 #-----------------------------------
 # RFC 3339 timestamps
@@ -196,6 +177,7 @@ def formatMyGeneLink(obj):
     return MYGENEURL + obj.homologues[0].homologue.crossReferences[0].identifier
 
 
+# Convert strand value as stored in MouseMine (+1/-1/0) to the AGR standard (+/-/.)
 #
 def convertStrand(s):
     return "+" if s in ["+1","1"] else "-" if s == "-1" else "."
@@ -284,4 +266,5 @@ def main():
   print json.dumps(jobj, sort_keys=True, indent=2, separators=(',', ': ')),
 
 
+#
 main()
