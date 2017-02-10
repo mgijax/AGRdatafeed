@@ -123,7 +123,7 @@ def buildSequenceFeatureQuery(service, subclassName, ids):
     query.add_sort_order("primaryIdentifier", "ASC")
     #
     query.add_constraint("organism.taxonId", "=", TAXONID, code = "A")
-    query.add_constraint("primaryIdentifier", "CONTAINS", "MGI:", code = "B")
+    query.add_constraint("dataSets.name", "=", "Mouse Gene Catalog from MGI", code = "B")
     if len(ids):
 	query.add_constraint("primaryIdentifier", "ONE OF", ids, code = "C")
     #
@@ -166,19 +166,22 @@ def isSecondaryId(identifier):
 #	- restricts which xrefs are exported
 #	- translates provider name
 #	- packs provider name and id into a object
+#	- ensures uniqueness 
 # Returns a list of cross reference objects.
 #
 def formatXrefs(obj):
-    xrefs = []
+    xrefs = set()
     for x in obj.crossReferences:
       dp = dataProviders.get(x.source.name, None)
       if dp:
-        xrefs.append({"dataProvider":dp, "id":x.identifier})
+        xrefs.add((dp, x.identifier))
     if hasattr(obj,"proteins"):
 	for x in obj.proteins:
 	    if x.uniprotAccession:
-	        xrefs.append({"dataProvider":"UniProtKB", "id":x.uniprotAccession})
-    return xrefs
+	        xrefs.add(("UniProtKB", x.uniprotAccession))
+    xrefs = list(xrefs)
+    xrefs.sort()
+    return [{"dataProvider":x[0],"id":x[1]} for x in xrefs]
 
 # In the MGI fewi, mouse genes link to a MyGenes wiki page which is a human readable description.
 # The MyGenes page is for the HUMAN ortholog of the mouse gene.
