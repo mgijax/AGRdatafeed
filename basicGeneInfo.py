@@ -15,28 +15,45 @@
 # This script uses MouseMine webservices API.
 #
 
+# standard libs
 import sys
 import json
 import itertools
 import time
 import types
+import argparse
 
+# nonstandard dependencies
 
-# The following library in not Python std lib.
 # See: http://henry.precheur.org/projects/rfc3339 
-#
 from rfc3339 import rfc3339
-
-# Returns the current date-time in RFC-3339 format
-# Example: "2017-01-26T15:00:42-05:00"
-#
-def getTimeStamp():
-    return rfc3339(time.time())
-
-#
 from intermine.webservice import Service
-#mousemine = Service("http://www.mousemine.org/mousemine/service")
-mousemine = Service("http://beta.mousemine.org/mousemine/service")
+
+
+#-----------------------------------
+# CONSTANTS
+
+# MouseMine service url
+#MOUSEMINEURL = "http://www.mousemine.org/mousemine/service"
+MOUSEMINEURL = "http://beta.mousemine.org/mousemine/service"
+
+# For generating a sample file
+SAMPLEIDS = [
+  "MGI:96677",	# Kit, your basic all American protein coding gene
+  "MGI:96449",	# Igh-7, a gene segment
+  "MGI:2685845",# Adgrd2-ps, a pseudogene
+  "MGI:5695867",# Twsn (twisty nose), a heritable phenotypic marker of unknown location
+  "MGI:87982",	# Akp1, syntenic on chromosome 1
+]
+
+#
+TAXONID = "10090"
+
+#
+MOUSEASSEMBLY = "GRCm38"
+
+# GeneLit url
+GENELITURL = "http://www.informatics.jax.org/reference/marker/%s?typeFilter=Literature"
 
 # for each xref provider name that we want to export, add an entry mapping our 
 # name to the AGR standard.
@@ -47,7 +64,23 @@ dataProviders = {
 }
 
 # Base URL for MyGene wiki pages
-myGeneBaseUrl = "https://en.wikipedia.org/wiki/"
+MYGENEURL = "https://en.wikipedia.org/wiki/"
+
+#-----------------------------------
+# RFC 3339 timestamps
+
+# Returns the current date-time in RFC-3339 format
+# Example: "2017-01-26T15:00:42-05:00"
+#
+def getTimeStamp():
+    return rfc3339(time.time())
+
+#-----------------------------------
+# MouseMine connection
+
+mousemine = Service(MOUSEMINEURL)
+
+#-----------------------------------
 
 # Constructs and returns the metaData (header) for the dump file.
 #
@@ -82,13 +115,14 @@ def buildSequenceFeatureQuery(service, subclassName, ids):
 	"crossReferences.source.name", "crossReferences.identifier",
 	"chromosomeLocation.locatedOn.primaryIdentifier",
 	"chromosomeLocation.start", "chromosomeLocation.end",
-	"chromosomeLocation.strand"
+	"chromosomeLocation.strand",
+	"chromosome.primaryIdentifier"
 
     )
     #
     query.add_sort_order("primaryIdentifier", "ASC")
     #
-    query.add_constraint("organism.taxonId", "=", "10090", code = "A")
+    query.add_constraint("organism.taxonId", "=", TAXONID, code = "A")
     query.add_constraint("primaryIdentifier", "CONTAINS", "MGI:", code = "B")
     if len(ids):
 	query.add_constraint("primaryIdentifier", "ONE OF", ids, code = "C")
@@ -96,6 +130,7 @@ def buildSequenceFeatureQuery(service, subclassName, ids):
     query.outerjoin("synonyms")
     query.outerjoin("crossReferences")
     query.outerjoin("chromosomeLocation")
+    query.outerjoin("chromosome")
     #
     return query
 
@@ -105,13 +140,13 @@ def buildGeneQuery(service, ids):
     # start w/ the seq feature query, then add Gene-specific parts
     query = buildSequenceFeatureQuery(service, 'Gene', ids)
     query.add_view(
-	"proteins.primaryAccession",
+	"proteins.uniprotAccession",
 	"homologues.homologue.primaryIdentifier", "homologues.homologue.symbol",
 	"homologues.homologue.crossReferences.identifier"
     )
     query.add_constraint("homologues.dataSets.name", "=", "Mouse/Human Orthologies from MGI", code = "D")
     query.add_constraint("homologues.homologue.crossReferences.source.name", "=", "MyGene", code = "E")
-    query.add_constraint("sequenceOntologyTerm.identifier", "!=", "SO:0000902", code = "F")
+    query.add_constraint("sequenceOntologyTerm.identifier", "!=", "SO:0000902", code = "F") # no transgenes
     query.outerjoin("proteins")
     query.outerjoin("homologues")
     return query
@@ -141,7 +176,8 @@ def formatXrefs(obj):
         xrefs.append({"dataProvider":dp, "id":x.identifier})
     if hasattr(obj,"proteins"):
 	for x in obj.proteins:
-	    xrefs.append({"dataProvider":"UniProtKB", "id":x.primaryAccession})
+	    if x.uniprotAccession:
+	        xrefs.append({"dataProvider":"UniProtKB", "id":x.uniprotAccession})
     return xrefs
 
 # In the MGI fewi, mouse genes link to a MyGenes wiki page which is a human readable description.
@@ -154,21 +190,33 @@ def formatXrefs(obj):
 def formatMyGeneLink(obj):
     if not hasattr(obj, "homologues") or len(obj.homologues) != 1:
         return None
-    return myGeneBaseUrl + obj.homologues[0].homologue.crossReferences[0].identifier
+    return MYGENEURL + obj.homologues[0].homologue.crossReferences[0].identifier
 
 
-def formatGenomeLocation(loc):
-    if loc:
-	s = loc.strand
-	s = "+" if s in ["+1","1"] else "-" if s == "-1" else "."
-        return {
-	    "assembly"		: "GRCm38",
+#
+def convertStrand(s):
+    return "+" if s in ["+1","1"] else "-" if s == "-1" else "."
+
+# Format the genome location for the obj. The agr standard is to allow multiple
+# locations per object, but we will only have one. Even so, we have to return a list.
+# 
+def formatGenomeLocation(obj):
+    locations = []
+    if obj.chromosomeLocation:
+	loc = obj.chromosomeLocation
+        locations.append({
+	    "assembly"		: MOUSEASSEMBLY,
 	    "chromosome"	: loc.locatedOn.primaryIdentifier,
 	    "startPosition"	: loc.start,
 	    "endPosition"	: loc.end,
-	    "strand"		: s
-	}
-    return None
+	    "strand"		: convertStrand(loc.strand)
+	})
+    elif obj.chromosome and obj.chromosome.primaryIdentifier != "UN":
+        locations.append({
+	    "assembly"		: MOUSEASSEMBLY,
+	    "chromosome"	: obj.chromosome.primaryIdentifier,
+	})
+    return locations
 
 # The AGR spec is to leave out attributes that would otherwise have a null value or an empty list value.
 # The implementation constructs complete objects, then calls this function to strip out any nulls/empty lists.
@@ -189,17 +237,41 @@ def getJsonObj(obj):
     "name"		: obj.name,
     "geneSynopsis"	: obj.description,
     "geneSynopsisUrl"	: formatMyGeneLink(obj),
-    "geneLiteratureUrl"	: "http://www.informatics.jax.org/reference/marker/%s?typeFilter=Literature" % obj.primaryIdentifier,
+    "geneLiteratureUrl"	: GENELITURL % obj.primaryIdentifier,
     "soTermId"		: obj.sequenceOntologyTerm.identifier,
-    "taxonId"		: "10090",
+    "taxonId"		: TAXONID,
     "synonyms"		: [ s.value for s in obj.synonyms if not isSecondaryId(s.value) ],
     "secondaryIds"	: [ s.value for s in obj.synonyms if isSecondaryId(s.value) ],
     "crossReferences"	: formatXrefs(obj),
-    "genomeLocations"	: [ formatGenomeLocation(obj.chromosomeLocation) ]
+    "genomeLocations"	: formatGenomeLocation(obj)
   })
 
+#
+def parseCmdLine():
+    parser = argparse.ArgumentParser(description='Dumps basic gene information to a JSON file.')
+
+    parser.add_argument(
+      '-s','--sample',
+      action='store_true',
+      default=False,
+      help='Generate sample output',
+      required=False)
+
+    parser.add_argument(
+      'identifiers', 
+      metavar='ids',
+      nargs='*',
+      help='Specific MGI ids to dump.')
+
+    args = parser.parse_args()
+    if args.sample:
+      args.identifiers.extend(SAMPLEIDS)
+    return args
+  
 # Main prog. Build the query, run it, and output 
-def main(ids):
+def main():
+  args = parseCmdLine()
+  ids = args.identifiers
   #
   query = itertools.chain(buildGeneQuery(mousemine, ids), buildPseudogeneQuery(mousemine, ids))
   jobj = {
@@ -208,8 +280,5 @@ def main(ids):
   }
   print json.dumps(jobj, sort_keys=True, indent=2, separators=(',', ': ')),
 
-#
-main(sys.argv[1:])
 
-
-
+main()
