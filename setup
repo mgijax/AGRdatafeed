@@ -1,0 +1,19 @@
+#!/bin/bash
+# setup up environment for AGRdatafeed
+#  i.e., install needed 3rd party libraries
+# Should only have to run this once upon install
+#
+# There is no problem running this if the libaries already are installed.
+#  easy_install doesn't seem to change the installed libs
+#  (probably updates the versions if there are newer ones)
+
+dir=$(pwd)
+
+if [ ! -d lib ]; then
+    mkdir lib
+fi
+# easy_install really wants the lib dir on the path
+PYTHONPATH=${dir}/lib:$PYTHONPATH
+
+easy_install --install-dir lib rfc3339
+easy_install --install-dir lib intermine

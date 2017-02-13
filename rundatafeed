@@ -1,0 +1,29 @@
+#!/bin/bash
+# run the AGR datafeed
+
+function Usage() {
+    cat - <<ENDTEXT
+
+$0 [-f feed] [-d DAFoutput] [-j JSONoutput] [MGI IDs ...]
+
+    Run the AGR data feed generation
+
+    -f daf|json		run only one of these feeds (default is both)
+    -d DAFoutput	output file for DAF generation (default = DAF.tsv)
+    -j JSONoutput	output file for JSON generation (default = JSON.tsv)
+    MGI IDs 	passed to the data feed scripts to limit output (for debugging)
+
+ENDTEXT
+    exit 5
+}
+
+if [ "$1" == --help ]; then
+    Usage
+fi
+
+# PYTHON path - just ./lib - hopefully this works
+
+dir=$(dirname $0)
+PYTHONPATH=${dir}/lib
+
+daf.py >DAF.tsv
