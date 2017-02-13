@@ -5,77 +5,35 @@
 # Writes DAF to stdout.
 # For debugging, accepts optional MGI IDs for genotypes on command line
 #   to restrict output to DAF records for those genotypes.
+# Example genotype ID:  MGI:5526095
 #
 # Author: jim kadin
 
 import sys
-#import json
-
+from ConfigParser import ConfigParser
 from intermine.webservice import Service
 
-DAFHEADER = """!daf-version 0.1
-!Project_name: MGI"""
-#########
-# Constants for genotype Annotation record field names that are used in the
-#   multiple places
-GENO_ID  = 'Genotype.primaryIdentifier'
+##### Load config
+cp = ConfigParser()
+cp.optionxform = str
+cp.read("config.cfg")
 
-# Structure of a DAF file.
-# Some of these fields are constant for us, some come from data pulled
-#  from MouseMine.
-# The "field" for a column is the genotype Annotation record field name
-#  (most are determined by the fields returned from the MM query)
-dafColumns = [		# ordered by the columns in the DAF file
-    {'colName': 'Taxon',		       'constant': 'taxon:10090'},
-    {'colName': 'DB Object Type',	       'constant': 'genotype'},
-    {'colName': 'DB',		 	       'constant': 'MGI'},
-    {'colName': 'DB Object ID',  	          'field': GENO_ID},
-    {'colName': 'DB Object Symbol',	          'field': 'Genotype.name'},
-    {'colName': 'Inferred gene association',      'field': 'RolledUpGenes'},
-		#'field': is computed, not from the query output
-    {'colName': 'Gene Product Form ID',	       'constant': ''},
-    {'colName': 'Experimental conditions',     'constant': ''},
-    {'colName': 'Association type',            'constant': 'is_model_of'},
-    {'colName': 'Qualifier',
-		'field': 'Genotype.ontologyAnnotations.qualifier'},
-    {'colName': 'DO ID',                          'field': 'DOIDs'},
-		#'field': is computed, not from the query output
-    {'colName': 'With',                        'constant': ''},
-    {'colName': 'Modifier - association type', 'constant': ''},
-    {'colName': 'Modifier - Qualifier',	       'constant': ''},
-    {'colName': 'Modifier - genetic',	       'constant': ''},
-    {'colName': 'Modifier - experimental conditions',
-                                               'constant': ''},
-    {'colName': 'Evidence Code',
-		'field': 'Genotype.ontologyAnnotations.evidence.code.code'},
-    {'colName': 'genetic sex',                 'constant': ''},
-    {'colName': 'DB:Reference', 		  'field': 'REF_ID' },
-		#'field': is computed, not from the query output
-    {'colName': 'Date',                        'constant': '2016/12/25'},
-    {'colName': 'Assigned By',                 'constant': 'MGI'},
-]
-#####
+MOUSEMINEURL    = cp.get("DEFAULT","MOUSEMINEURL")
+TAXONID         = cp.get("DEFAULT","TAXONID")
+DAFHEADER	= cp.get("dafFile","DAFHEADER") 
 
-def formatDafRow( annotRow):
-    # return an annotation row formatted as a DAF row
-
-    dafRow = []
-    for dafColDesc in dafColumns:
-	value = dafColDesc['constant'] if dafColDesc.has_key('constant') \
-			else str(annotRow[ dafColDesc['field'] ]) 
-	if value == 'None': value = ''
-	dafRow.append(value)
-
-    return '\t'.join(dafRow)
-#####
+########
 class OmimToDOfinder (object):
-    # find DO term for a given OMIM term ID
+    # build and provide a mapping from OMIM IDs to DO IDs
 
     def __init__(self, service):
 	query = self.buildQuery(service)
 	self.buildMapping(query)
     ######
+    def omimToDO(self, OmimID):
+	return self.OmimToDO.get(OmimID, set())
 
+    ######
     def buildQuery(self,service):
 
 	# Get a new query on the class (table) you will be querying:
@@ -100,21 +58,20 @@ class OmimToDOfinder (object):
 	    OmimID = row["identifier"]
 	    DOID = row["crossReferences.identifier"]
 	    self.OmimToDO.setdefault(OmimID,set()).add(DOID)
-    ######
-
-    def omimToDO(self, OmimID):
-	return self.OmimToDO.get(OmimID, set())
-
 ####### end class OmimToDOfinder
 
 class GenoToGeneFinder (object):
     # find rolled up gene(s) for a genotype to disease annotation
+    # build and provide a mapping from OMIM IDs to DO IDs
 
     def __init__(self, service):
 	query = self.buildQuery(service)
 	self.buildMapping(query)
     ######
+    def genoToRolledUpGenes(self, genoID):
+	return self.genoToGene.get(genoID, set())
 
+    ######
     def buildQuery(self,service):
 	query = service.new_query("SequenceFeature")
 
@@ -146,11 +103,6 @@ class GenoToGeneFinder (object):
 	    genoID = row["ontologyAnnotations.evidence.baseAnnotations.subject.primaryIdentifier"]
 	    geneID = row["primaryIdentifier"]
 	    self.genoToGene.setdefault(genoID,set()).add(geneID)
-    ######
-
-    def genoToRolledUpGenes(self, genoID):
-	return self.genoToGene.get(genoID, set())
-
 ####### end class GenoToGeneFinder
 
 #####
@@ -178,8 +130,49 @@ def buildGenoAnnotQuery(service, ids):
     return query
 #####
 
+# Structure of a DAF file.
+#########
+# Constants for genotype Annotation record field names that are used in the
+#   multiple places
+GENO_ID  = 'Genotype.primaryIdentifier'
+
+# Some of these fields are constant for us, some come from data pulled
+#  from MouseMine.
+# The "field" for a column is the genotype Annotation record field name
+#  (most are determined by the fields returned from the MM query)
+dafColumns = [		# ordered by the columns in the DAF file
+    {'colName': 'Taxon',		       'constant': 'taxon:'+ TAXONID},
+    {'colName': 'DB Object Type',	       'constant': 'genotype'},
+    {'colName': 'DB',		 	       'constant': 'MGI'},
+    {'colName': 'DB Object ID',  	          'field': GENO_ID},
+    {'colName': 'DB Object Symbol',	          'field': 'Genotype.name'},
+    {'colName': 'Inferred gene association',      'field': 'RolledUpGenes'},
+		#'field': is computed, not from the query output
+    {'colName': 'Gene Product Form ID',	       'constant': ''},
+    {'colName': 'Experimental conditions',     'constant': ''},
+    {'colName': 'Association type',            'constant': 'is_model_of'},
+    {'colName': 'Qualifier',
+		'field': 'Genotype.ontologyAnnotations.qualifier'},
+    {'colName': 'DO ID',                          'field': 'DOIDs'},
+		#'field': is computed, not from the query output
+    {'colName': 'With',                        'constant': ''},
+    {'colName': 'Modifier - association type', 'constant': ''},
+    {'colName': 'Modifier - Qualifier',	       'constant': ''},
+    {'colName': 'Modifier - genetic',	       'constant': ''},
+    {'colName': 'Modifier - experimental conditions',
+                                               'constant': ''},
+    {'colName': 'Evidence Code',
+		'field': 'Genotype.ontologyAnnotations.evidence.code.code'},
+    {'colName': 'genetic sex',                 'constant': ''},
+    {'colName': 'DB:Reference', 		  'field': 'REF_ID' },
+		#'field': is computed, not from the query output
+    {'colName': 'Date',                        'constant': '2016/12/25'},
+    {'colName': 'Assigned By',                 'constant': 'MGI'},
+]
+#####
+
 def main(ids):
-    service = Service("http://www.mousemine.org/mousemine/service")
+    service = Service(MOUSEMINEURL)
     geneFinder = GenoToGeneFinder(service)
     doFinder = OmimToDOfinder(service)
 
@@ -217,5 +210,18 @@ def main(ids):
 
 	print formatDafRow(genoAnnot)
 #####
+def formatDafRow( annotRow):
+    # return an annotation row formatted as a DAF row
+
+    dafRow = []
+    for dafColDesc in dafColumns:
+        value = dafColDesc['constant'] if dafColDesc.has_key('constant') \
+                        else str(annotRow[ dafColDesc['field'] ])
+        if value == 'None': value = ''
+        dafRow.append(value)
+
+    return '\t'.join(dafRow)
+#####
 
 main(sys.argv[1:]) 	# optional geno IDs on the cmd line to restrict query
+
