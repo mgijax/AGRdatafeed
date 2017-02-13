@@ -4,14 +4,15 @@
 function Usage() {
     cat - <<ENDTEXT
 
-$0 [-f feed] [-d DAFoutput] [-j JSONoutput] [MGI IDs ...]
+$0 [-f feed] [-d DAFoutput] [-b BGIoutput] [MGI IDs ...]
 
-    Run the AGR data feed generation
+    Run the AGR data feed generation:
+	DAF (disease annotation file) and/or bgi (Basic Gene Info)
 
-    -f daf|json		run only one of these feeds (default is both)
+    -f daf|bgi		run only one of these feeds (default is both)
     -d DAFoutput	output file for DAF generation (default = DAF.tsv)
-    -j JSONoutput	output file for JSON generation (default = JSON.tsv)
-    MGI IDs 	passed to the data feed scripts to limit output (for debugging)
+    -b BGFoutput	output file for BGF generation (default = BGI.json)
+    MGI IDs	 passed to the data feed scripts to limit output (for debugging)
 
 ENDTEXT
     exit 5
@@ -23,7 +24,42 @@ fi
 
 # PYTHON path - just ./lib - hopefully this works
 
-dir=$(dirname $0)
-PYTHONPATH=${dir}/lib
+dir="$(dirname $0)"
+PYTHONPATH="${dir}/lib"
 
-daf.py >DAF.tsv
+# defaults
+runDAF=T
+runBGI=T
+DAFoutput=DAF.tsv
+BGIoutput=BGI.json
+
+args=$(getopt f:d:j: $*)
+if [ $? != 0 ]; then
+    Usage
+fi
+set -- $args
+
+for i; do
+    case "$i" in
+    -f) case "$2" in
+	daf) runBGI=F;;
+	bgi) runDAF=F;;
+	*)   Usage;;
+	esac
+	shift; shift;
+	;;
+    -d) DAFoutput="$2"; shift; shift
+	;;
+    -b) BGIoutput="$2"; shift; shift
+	;;
+    --) shift; break;;
+    esac
+done
+#echo "runDAF $runDAF; runBGI $runBGI; DAFoutput $DAFoutput; BGIoutput $BGIoutput"
+
+if [ $runBGI == T ]; then
+    basicGeneInfo.py $* > $BGIoutput
+fi
+if [ $runDAF == T ]; then
+    daf.py $* > $DAFoutput
+fi
