@@ -5,7 +5,7 @@
 # Writes DAF to stdout.
 # For debugging, accepts optional MGI IDs for genotypes on command line
 #   to restrict output to DAF records for those genotypes.
-# Example genotype ID:  MGI:5526095
+# Example genotype ID:  MGI:5526095 MGI:2175208
 #
 # Author: jim kadin
 
@@ -55,8 +55,8 @@ class OmimToDOfinder (object):
 	self.OmimToDO = {}	# OmimToDO[OMIM ID] == set(DO IDs)
 				# in theory, should only be 1 DO ID, right?
 	for row in query.rows():
-	    OmimID = row["identifier"]
-	    DOID = row["crossReferences.identifier"]
+	    OmimID = str(row["identifier"])
+	    DOID   = row["crossReferences.identifier"]
 	    self.OmimToDO.setdefault(OmimID,set()).add(DOID)
 ####### end class OmimToDOfinder
 
@@ -106,28 +106,78 @@ class GenoToGeneFinder (object):
 ####### end class GenoToGeneFinder
 
 #####
-def buildGenoAnnotQuery(service, ids):
-    # ids is list of Genotype MGI ids to restrict the query to for testing.
-    #   if empty list, get them all
+class GenoAnnotationQuery (object): 
+    # Provide an iterator, annotations(), for all genotype disease annotations.
+    # Each returned annotation record is a dictionary with fields defined
+    #    below.
 
-    # Get a new query on the class (table) you will be querying:
-    query = service.new_query("Genotype")
+    def __init__(self, service, ids):
+	# ids is list of Genotype MGI ids to restrict the query to.
+	#   if empty list, get them all
+	self.service = service
+	self.ids = ids
 
-    #Type constraints come early before all mentions of the paths they constrain
-    query.add_constraint("ontologyAnnotations.ontologyTerm", "OMIMTerm")
-    if len(ids):
-	query.add_constraint("primaryIdentifier", "ONE OF", ids)
+    def buildGenoAnnotQuery(self):
 
-    # The view specifies the output columns
-    query.add_view(
-	"primaryIdentifier", "name", "ontologyAnnotations.ontologyTerm.omimId",
-	"ontologyAnnotations.ontologyTerm.name", "ontologyAnnotations.qualifier",
-	"ontologyAnnotations.evidence.code.code",
-	"ontologyAnnotations.evidence.publications.pubMedId",
-	"ontologyAnnotations.evidence.publications.mgiJnum",
-	"ontologyAnnotations.evidence.publications.mgiId"
-    )
-    return query
+	# Get a new query on the class (table) you will be querying:
+	query = self.service.new_query("Genotype")
+
+	#Type constraints come before all mentions of the paths they constrain
+	query.add_constraint("ontologyAnnotations.ontologyTerm", "OMIMTerm")
+	if len(self.ids):
+	    query.add_constraint("primaryIdentifier", "ONE OF", self.ids)
+
+	# The view specifies the output columns
+	query.add_view(
+	    "primaryIdentifier", "name",
+	    "ontologyAnnotations.ontologyTerm.omimId",
+	    "ontologyAnnotations.ontologyTerm.name",
+	    "ontologyAnnotations.qualifier",
+	    "ontologyAnnotations.evidence.code.code",
+	    "ontologyAnnotations.evidence.publications.pubMedId",
+	    "ontologyAnnotations.evidence.publications.mgiJnum",
+	    "ontologyAnnotations.evidence.publications.mgiId"
+	)
+	return query
+
+    def annotations(self):
+	genoAnnotQuery = self.buildGenoAnnotQuery()
+
+	for genoAnnotRow in genoAnnotQuery.rows():
+	    genoAnnot = genoAnnotRow.to_d()
+
+	    # 'PMID:' prefix
+	    pubmedID = genoAnnot['Genotype.ontologyAnnotations.evidence.publications.pubMedId']
+	    if pubmedID != '': pubmedID = 'PMID:' + str(pubmedID)
+
+	    # 'OMIM:' prefix
+	    omimID = 'OMIM:' + \
+	     str(genoAnnot['Genotype.ontologyAnnotations.ontologyTerm.omimId'])
+
+	    result = {
+	    'genoID'  : genoAnnot['Genotype.primaryIdentifier'],
+	    'genoName': genoAnnot['Genotype.name'],
+	    'omimID'  : omimID,
+
+	    'omimTerm':
+	      genoAnnot['Genotype.ontologyAnnotations.ontologyTerm.name'],
+
+	    'qualifier':
+	      genoAnnot['Genotype.ontologyAnnotations.qualifier'],
+
+	    'evidenceCode':
+	      genoAnnot['Genotype.ontologyAnnotations.evidence.code.code'],
+
+	    'pubmedID': pubmedID,
+
+	    'mgiJnum':
+	      genoAnnot['Genotype.ontologyAnnotations.evidence.publications.mgiJnum'],
+	    'mgiRefID':
+	      genoAnnot['Genotype.ontologyAnnotations.evidence.publications.mgiId'],
+	    }
+	    yield result
+
+####### end class GenoAnnotationQuery
 #####
 
 # Structure of a DAF file.
@@ -144,15 +194,14 @@ dafColumns = [		# ordered by the columns in the DAF file
     {'colName': 'Taxon',		       'constant': 'taxon:'+ TAXONID},
     {'colName': 'DB Object Type',	       'constant': 'genotype'},
     {'colName': 'DB',		 	       'constant': 'MGI'},
-    {'colName': 'DB Object ID',  	          'field': GENO_ID},
-    {'colName': 'DB Object Symbol',	          'field': 'Genotype.name'},
+    {'colName': 'DB Object ID',  	          'field': 'genoID'},
+    {'colName': 'DB Object Symbol',	          'field': 'genoName'},
     {'colName': 'Inferred gene association',      'field': 'RolledUpGenes'},
 		#'field': is computed, not from the query output
     {'colName': 'Gene Product Form ID',	       'constant': ''},
     {'colName': 'Experimental conditions',     'constant': ''},
     {'colName': 'Association type',            'constant': 'is_model_of'},
-    {'colName': 'Qualifier',
-		'field': 'Genotype.ontologyAnnotations.qualifier'},
+    {'colName': 'Qualifier',			'field': 'qualifier'},
     {'colName': 'DO ID',                          'field': 'DOIDs'},
 		#'field': is computed, not from the query output
     {'colName': 'With',                        'constant': ''},
@@ -161,8 +210,7 @@ dafColumns = [		# ordered by the columns in the DAF file
     {'colName': 'Modifier - genetic',	       'constant': ''},
     {'colName': 'Modifier - experimental conditions',
                                                'constant': ''},
-    {'colName': 'Evidence Code',
-		'field': 'Genotype.ontologyAnnotations.evidence.code.code'},
+    {'colName': 'Evidence Code',		'field': 'evidenceCode'},
     {'colName': 'genetic sex',                 'constant': ''},
     {'colName': 'DB:Reference', 		  'field': 'REF_ID' },
 		#'field': is computed, not from the query output
@@ -172,41 +220,32 @@ dafColumns = [		# ordered by the columns in the DAF file
 #####
 
 def main(ids):
-    service = Service(MOUSEMINEURL)
+    service    = Service(MOUSEMINEURL)
     geneFinder = GenoToGeneFinder(service)
-    doFinder = OmimToDOfinder(service)
+    doFinder   = OmimToDOfinder(service)
+    annotQuery = GenoAnnotationQuery(service, ids)
 
     print DAFHEADER
     print '\t'.join( [col['colName'] for col in dafColumns] )
 
-    genoAnnotQuery = buildGenoAnnotQuery(service, ids)
-
-    for genoAnnotRow in genoAnnotQuery.rows():
-	genoAnnot = genoAnnotRow.to_d()
+    for genoAnnot in annotQuery.annotations():
 
 	### Clean up the genoAnnot
-	# shorter field names
-	OMIM_ID  = "Genotype.ontologyAnnotations.ontologyTerm.omimId"
-	PM_ID    = 'Genotype.ontologyAnnotations.evidence.publications.pubMedId'
-	MGI_Ref_ID = 'Genotype.ontologyAnnotations.evidence.publications.mgiId'
 
 	# rolled up genes
-	genoID = genoAnnot[GENO_ID]
+	genoID = genoAnnot['genoID']
 	genoAnnot['RolledUpGenes'] = \
 			    '|'.join(geneFinder.genoToRolledUpGenes(genoID))
 
 	# OMIM --> DO
-	omimID = "OMIM:" + str(genoAnnot[OMIM_ID])
-	DOIDs = doFinder.omimToDO(omimID)
+	DOIDs = doFinder.omimToDO(genoAnnot['omimID'])
 	if len(DOIDs) == 0:		# skip if no DO ID
 	    continue
 	genoAnnot['DOIDs'] = '|'.join(DOIDs)
 
 	# MGI reference ID if no PMID
-	pmID = str(genoAnnot[PM_ID])
-	refID = genoAnnot[MGI_Ref_ID]
-	genoAnnot['REF_ID'] = "PMID:" + pmID if pmID!='' and pmID!='None' \
-				else  refID
+	pmID  = genoAnnot['pubmedID']
+	genoAnnot['REF_ID'] = pmID if pmID!='' else  genoAnnot['mgiRefID']
 
 	print formatDafRow(genoAnnot)
 #####
