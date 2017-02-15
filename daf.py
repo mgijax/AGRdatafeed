@@ -107,7 +107,8 @@ class GenoToGeneFinder (object):
 
 #####
 class GenoAnnotationQuery (object): 
-    # Provide an iterator, annotations(), for all genotype disease annotations.
+    # Provide an iterator, annotations(), for all genotype disease annotations
+    #   pulled from MouseMine.
     # Each returned annotation record is a dictionary with fields defined
     #    below.
 
@@ -148,7 +149,8 @@ class GenoAnnotationQuery (object):
 
 	    # 'PMID:' prefix
 	    pubmedID = genoAnnot['Genotype.ontologyAnnotations.evidence.publications.pubMedId']
-	    if pubmedID != '': pubmedID = 'PMID:' + str(pubmedID)
+	    if pubmedID != '' and pubmedID != None:
+		pubmedID = 'PMID:' + str(pubmedID)
 
 	    # 'OMIM:' prefix
 	    omimID = 'OMIM:' + \
@@ -178,88 +180,94 @@ class GenoAnnotationQuery (object):
 	    yield result
 
 ####### end class GenoAnnotationQuery
-#####
 
-# Structure of a DAF file.
-#########
-# Constants for genotype Annotation record field names that are used in the
-#   multiple places
-GENO_ID  = 'Genotype.primaryIdentifier'
+class DafFormatter(object):
+    # knows the structure of a DAF file, formats a line in a DAF file, etc.
 
-# Some of these fields are constant for us, some come from data pulled
-#  from MouseMine.
-# The "field" for a column is the genotype Annotation record field name
-#  (most are determined by the fields returned from the MM query)
-dafColumns = [		# ordered by the columns in the DAF file
+    #########
+    # Structure of a DAF file.
+    # Some of these fields (columns) are constant for us, some come from 
+    #  from MouseMine, some are computed.
+    # The "field" for a column is the genotype Annotation record field name
+    #
+    dafColumns = [		# ordered by the columns in the DAF file
     {'colName': 'Taxon',		       'constant': 'taxon:'+ TAXONID},
     {'colName': 'DB Object Type',	       'constant': 'genotype'},
     {'colName': 'DB',		 	       'constant': 'MGI'},
     {'colName': 'DB Object ID',  	          'field': 'genoID'},
     {'colName': 'DB Object Symbol',	          'field': 'genoName'},
-    {'colName': 'Inferred gene association',      'field': 'RolledUpGenes'},
-		#'field': is computed, not from the query output
+    {'colName': 'Inferred gene association',      'field': 'ROLLEDUPGENES'},
     {'colName': 'Gene Product Form ID',	       'constant': ''},
     {'colName': 'Experimental conditions',     'constant': ''},
     {'colName': 'Association type',            'constant': 'is_model_of'},
-    {'colName': 'Qualifier',			'field': 'qualifier'},
+    {'colName': 'Qualifier',			  'field': 'qualifier'},
     {'colName': 'DO ID',                          'field': 'DOIDs'},
-		#'field': is computed, not from the query output
     {'colName': 'With',                        'constant': ''},
     {'colName': 'Modifier - association type', 'constant': ''},
     {'colName': 'Modifier - Qualifier',	       'constant': ''},
     {'colName': 'Modifier - genetic',	       'constant': ''},
     {'colName': 'Modifier - experimental conditions',
                                                'constant': ''},
-    {'colName': 'Evidence Code',		'field': 'evidenceCode'},
+    {'colName': 'Evidence Code',		  'field': 'evidenceCode'},
     {'colName': 'genetic sex',                 'constant': ''},
-    {'colName': 'DB:Reference', 		  'field': 'REF_ID' },
-		#'field': is computed, not from the query output
+    {'colName': 'DB:Reference', 		  'field': 'REFID' },
     {'colName': 'Date',                        'constant': '2016/12/25'},
     {'colName': 'Assigned By',                 'constant': 'MGI'},
-]
-#####
+    ]
+    #########
+
+    def __init__(self, service):
+	self.geneFinder = GenoToGeneFinder(service)
+	self.doFinder   = OmimToDOfinder(service)
+
+    def getDafHeader(self):
+	return DAFHEADER + '\n' + \
+		'\t'.join([col['colName'] for col in DafFormatter.dafColumns]) + '\n'
+
+    def omim2DO(self, omimID):
+	return '|'.join( self.doFinder.omimToDO(omimID) )
+
+    def getRolledUpGenes(self, genoID):
+	return '|'.join( self.geneFinder.genoToRolledUpGenes(genoID) )
+    
+    def getReferenceID(self, pmID, mgiRefID):
+	return pmID if pmID!='' and pmID!=None else  mgiRefID
+
+    def formatDafRow(self, genoAnnot):
+	# return as string representing the DAF row for genoAnnot
+
+	DOIDs = self.omim2DO( genoAnnot['omimID'] )
+	if len(DOIDs) == 0:		# skip if no DO ID
+	    return ''
+
+	# Compute a few DAF columns
+	genoAnnot['DOIDs'] = DOIDs
+
+	genoAnnot['ROLLEDUPGENES'] = self.getRolledUpGenes(genoAnnot['genoID'])
+
+	genoAnnot['REFID'] = self.getReferenceID(genoAnnot['pubmedID'],
+							genoAnnot['mgiRefID'])
+
+	dafRow = []
+	for dafColDesc in DafFormatter.dafColumns:
+	    value = dafColDesc['constant'] if dafColDesc.has_key('constant') \
+			    else str(genoAnnot[ dafColDesc['field'] ])
+	    if value == 'None': value = ''
+	    dafRow.append(value)
+
+	return '\t'.join(dafRow) + '\n'
+
+######## end Class DafFormatter
 
 def main(ids):
     service    = Service(MOUSEMINEURL)
-    geneFinder = GenoToGeneFinder(service)
-    doFinder   = OmimToDOfinder(service)
     annotQuery = GenoAnnotationQuery(service, ids)
+    df         = DafFormatter(service)
 
-    print DAFHEADER
-    print '\t'.join( [col['colName'] for col in dafColumns] )
+    sys.stdout.write( df.getDafHeader() )
 
     for genoAnnot in annotQuery.annotations():
-
-	### Clean up the genoAnnot
-
-	# rolled up genes
-	genoID = genoAnnot['genoID']
-	genoAnnot['RolledUpGenes'] = \
-			    '|'.join(geneFinder.genoToRolledUpGenes(genoID))
-
-	# OMIM --> DO
-	DOIDs = doFinder.omimToDO(genoAnnot['omimID'])
-	if len(DOIDs) == 0:		# skip if no DO ID
-	    continue
-	genoAnnot['DOIDs'] = '|'.join(DOIDs)
-
-	# MGI reference ID if no PMID
-	pmID  = genoAnnot['pubmedID']
-	genoAnnot['REF_ID'] = pmID if pmID!='' else  genoAnnot['mgiRefID']
-
-	print formatDafRow(genoAnnot)
-#####
-def formatDafRow( annotRow):
-    # return an annotation row formatted as a DAF row
-
-    dafRow = []
-    for dafColDesc in dafColumns:
-        value = dafColDesc['constant'] if dafColDesc.has_key('constant') \
-                        else str(annotRow[ dafColDesc['field'] ])
-        if value == 'None': value = ''
-        dafRow.append(value)
-
-    return '\t'.join(dafRow)
+	sys.stdout.write( df.formatDafRow( genoAnnot ) )
 #####
 
 main(sys.argv[1:]) 	# optional geno IDs on the cmd line to restrict query
