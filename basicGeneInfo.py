@@ -39,7 +39,6 @@ cp.read("config.cfg")
 
 MOUSEMINEURL	= cp.get("DEFAULT","MOUSEMINEURL")
 TAXONID		= cp.get("DEFAULT","TAXONID")
-MOUSEASSEMBLY	= cp.get("DEFAULT","MOUSEASSEMBLY")
 GENELITURL	= cp.get("DEFAULT","GENELITURL")
 MYGENEURL	= cp.get("DEFAULT","MYGENEURL")
 SAMPLEIDS	= cp.get("DEFAULT","SAMPLEIDS").split()
@@ -97,6 +96,7 @@ def buildSequenceFeatureQuery(service, subclassName, ids):
 	"chromosomeLocation.locatedOn.primaryIdentifier",
 	"chromosomeLocation.start", "chromosomeLocation.end",
 	"chromosomeLocation.strand",
+	"chromosomeLocation.assembly",
 	"chromosome.primaryIdentifier"
 
     )
@@ -190,7 +190,7 @@ def formatGenomeLocation(obj):
     if obj.chromosomeLocation:
 	loc = obj.chromosomeLocation
         locations.append({
-	    "assembly"		: MOUSEASSEMBLY,
+	    "assembly"		: loc.assembly,
 	    "chromosome"	: loc.locatedOn.primaryIdentifier,
 	    "startPosition"	: loc.start,
 	    "endPosition"	: loc.end,
@@ -198,7 +198,7 @@ def formatGenomeLocation(obj):
 	})
     elif obj.chromosome and obj.chromosome.primaryIdentifier != "UN":
         locations.append({
-	    "assembly"		: MOUSEASSEMBLY,
+	    "assembly"		: '',
 	    "chromosome"	: obj.chromosome.primaryIdentifier,
 	})
     return locations
