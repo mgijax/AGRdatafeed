@@ -137,7 +137,8 @@ class GenoAnnotationQuery (object):
 	    "ontologyAnnotations.evidence.code.code",
 	    "ontologyAnnotations.evidence.publications.pubMedId",
 	    "ontologyAnnotations.evidence.publications.mgiJnum",
-	    "ontologyAnnotations.evidence.publications.mgiId"
+	    "ontologyAnnotations.evidence.publications.mgiId",
+	    "ontologyAnnotations.evidence.annotationDate"
 	)
 	return query
 
@@ -176,6 +177,8 @@ class GenoAnnotationQuery (object):
 	      genoAnnot['Genotype.ontologyAnnotations.evidence.publications.mgiJnum'],
 	    'mgiRefID':
 	      genoAnnot['Genotype.ontologyAnnotations.evidence.publications.mgiId'],
+	    'annotDate':
+	      genoAnnot['Genotype.ontologyAnnotations.evidence.annotationDate'],
 	    }
 	    yield result
 
@@ -189,6 +192,7 @@ class DafFormatter(object):
     # Some of these fields (columns) are constant for us, some come from 
     #  from MouseMine, some are computed.
     # The "field" for a column is the genotype Annotation record field name
+    #	that holds the contents for the column.
     #
     dafColumns = [		# ordered by the columns in the DAF file
     {'colName': 'Taxon',		       'constant': 'taxon:'+ TAXONID},
@@ -211,7 +215,7 @@ class DafFormatter(object):
     {'colName': 'Evidence Code',		  'field': 'evidenceCode'},
     {'colName': 'genetic sex',                 'constant': ''},
     {'colName': 'DB:Reference', 		  'field': 'REFID' },
-    {'colName': 'Date',                        'constant': '2016/12/25'},
+    {'colName': 'Date',                           'field': 'annotDate'},
     {'colName': 'Assigned By',                 'constant': 'MGI'},
     ]
     #########
@@ -222,7 +226,7 @@ class DafFormatter(object):
 
     def getDafHeader(self):
 	return DAFHEADER + '\n' + \
-		'\t'.join([col['colName'] for col in DafFormatter.dafColumns]) + '\n'
+	    '\t'.join([col['colName'] for col in DafFormatter.dafColumns]) +'\n'
 
     def omim2DO(self, omimID):
 	return '|'.join( self.doFinder.omimToDO(omimID) )
