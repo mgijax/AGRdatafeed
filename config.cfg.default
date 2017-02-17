@@ -15,10 +15,6 @@ SAMPLEIDS: MGI:96677 MGI:96449 MGI:2685845 MGI:5695867 MGI:87982
 # Mouse taxon id
 TAXONID: 10090
 
-#
-# FIXME: should come from the database. Need to load into MouseMine.
-MOUSEASSEMBLY: GRCm38
-
 # GeneLit url
 GENELITURL: http://www.informatics.jax.org/reference/marker/%s?typeFilter=Literature
 
