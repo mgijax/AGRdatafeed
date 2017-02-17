@@ -13,7 +13,8 @@ if [ ! -d lib ]; then
     mkdir lib
 fi
 # easy_install really wants the lib dir on the path
-PYTHONPATH=${dir}/lib:$PYTHONPATH
+PYTHONPATH=${dir}/lib:${PYTHONPATH:-.}
+export PYTHONPATH
 
 easy_install --install-dir lib rfc3339
 easy_install --install-dir lib intermine
