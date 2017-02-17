@@ -14,6 +14,8 @@
 # 
 # This script uses MouseMine webservices API.
 #
+# Author: Joel Richardson
+#
 
 # standard libs
 import sys
@@ -34,7 +36,7 @@ from intermine.webservice import Service
 #-----------------------------------
 # Load config
 cp = ConfigParser()
-cp.optionxform = str
+cp.optionxform = str # make keys case sensitive
 cp.read("config.cfg")
 
 MOUSEMINEURL	= cp.get("DEFAULT","MOUSEMINEURL")
@@ -42,6 +44,10 @@ TAXONID		= cp.get("DEFAULT","TAXONID")
 GENELITURL	= cp.get("DEFAULT","GENELITURL")
 MYGENEURL	= cp.get("DEFAULT","MYGENEURL")
 SAMPLEIDS	= cp.get("DEFAULT","SAMPLEIDS").split()
+
+# Mapping from data provider name as stored in MGI to name as needed by AGR
+# Cross references exported to the file are limited to those where the provider's name
+# has an entry in this map.
 dataProviders	= {}
 for n in cp.options("dataProviders"):
     dataProviders[n] = cp.get("dataProviders", n)
