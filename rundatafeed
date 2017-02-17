@@ -1,6 +1,10 @@
 #!/bin/bash
 # run the AGR datafeed
 
+# default output file names
+DAFoutput=MGI_0.3_disease.daf.txt
+BGIoutput=MGI_0.3_basicGeneInformation.json
+
 function Usage() {
     cat - <<ENDTEXT
 
@@ -10,28 +14,25 @@ $0 [-f feed] [-d DAFoutput] [-b BGIoutput] [MGI IDs ...]
 	DAF (disease annotation file) and/or bgi (Basic Gene Info)
 
     -f daf|bgi		run only one of these feeds (default is both)
-    -d DAFoutput	output file for DAF generation (default = DAF.tsv)
-    -b BGFoutput	output file for BGF generation (default = BGI.json)
-    MGI IDs	 passed to the data feed scripts to limit output (for debugging)
+    -d DAFoutput	output file for DAF generation (default = $DAFoutput)
+    -b BGFoutput	output file for BGF generation (default = $BGIoutput)
+    MGI IDs	 passed to the data feed scripts to limit output
 
 ENDTEXT
     exit 5
 }
-
 if [ "$1" == --help ]; then
     Usage
 fi
 
 # PYTHON path - just ./lib - hopefully this works
-
 dir="$(dirname $0)"
 PYTHONPATH="${dir}/lib"
+export PYTHONPATH
 
 # defaults
 runDAF=T
 runBGI=T
-DAFoutput=DAF.tsv
-BGIoutput=BGI.json
 
 args=$(getopt f:d:j: $*)
 if [ $? != 0 ]; then
@@ -58,8 +59,8 @@ done
 #echo "runDAF $runDAF; runBGI $runBGI; DAFoutput $DAFoutput; BGIoutput $BGIoutput"
 
 if [ $runBGI == T ]; then
-    basicGeneInfo.py $* > $BGIoutput
+    ./basicGeneInfo.py $* > $BGIoutput
 fi
 if [ $runDAF == T ]; then
-    daf.py $* > $DAFoutput
+    ./daf.py $* > $DAFoutput
 fi
