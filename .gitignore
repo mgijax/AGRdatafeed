@@ -7,3 +7,5 @@
 *.swp
 *.tsv
 *.xlsx
+*.txt
+*.json
