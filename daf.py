@@ -10,8 +10,10 @@
 # Author: jim kadin
 
 import sys
+import json
 from ConfigParser import ConfigParser
 from intermine.webservice import Service
+from AGRlib import stripNulls, buildMetaObject
 
 ##### Load config
 cp = ConfigParser()
@@ -20,7 +22,7 @@ cp.read("config.cfg")
 
 MOUSEMINEURL    = cp.get("DEFAULT","MOUSEMINEURL")
 TAXONID         = cp.get("DEFAULT","TAXONID")
-DAFHEADER	= cp.get("dafFile","DAFHEADER") 
+#DAFHEADER	= cp.get("dafFile","DAFHEADER") 
 
 ########
 class OmimToDOfinder (object):
@@ -53,7 +55,7 @@ class OmimToDOfinder (object):
     def buildMapping(self, query):
 
 	self.OmimToDO = {}	# OmimToDO[OMIM ID] == set(DO IDs)
-				# in theory, should only be 1 DO ID, right?
+				# could be 0 or >1 in odd cases
 	for row in query.rows():
 	    OmimID = str(row["identifier"])
 	    DOID   = row["crossReferences.identifier"]
@@ -185,7 +187,7 @@ class GenoAnnotationQuery (object):
 ####### end class GenoAnnotationQuery
 
 class DafFormatter(object):
-    # knows the structure of a DAF file, formats a line in a DAF file, etc.
+    # knows the structure of a DAF file, formats an annotation for the file, etc
 
     #########
     # Structure of a DAF file.
@@ -224,54 +226,75 @@ class DafFormatter(object):
 	self.geneFinder = GenoToGeneFinder(service)
 	self.doFinder   = OmimToDOfinder(service)
 
-    def getDafHeader(self):
-	return DAFHEADER + '\n' + \
-	    '\t'.join([col['colName'] for col in DafFormatter.dafColumns]) +'\n'
-
     def omim2DO(self, omimID):
-	return '|'.join( self.doFinder.omimToDO(omimID) )
+	# list of DO IDs for the given omimID
+	return [ d for d in self.doFinder.omimToDO(omimID) ]
 
     def getRolledUpGenes(self, genoID):
-	return '|'.join( self.geneFinder.genoToRolledUpGenes(genoID) )
+	# list of rolled up genes for the genotype
+	return [ g for g in self.geneFinder.genoToRolledUpGenes(genoID) ]
     
     def getReferenceID(self, pmID, mgiRefID):
+	# return the correct reference ID to use, pubmed or mgi
 	return pmID if pmID!='' and pmID!=None else  mgiRefID
 
-    def formatDafRow(self, genoAnnot):
-	# return as string representing the DAF row for genoAnnot
+    def getAnnotJsonObj(self, ga):
+	# return a json object representing the DAF row for genoAnnot (ga)
 
-	DOIDs = self.omim2DO( genoAnnot['omimID'] )
-	if len(DOIDs) == 0:		# skip if no DO ID
-	    return ''
+	# skip if no DO ids or more than one
+	DOIDs = self.omim2DO(ga['omimID'])
+	if len(DOIDs) != 1:
+	    return None
+	doID = DOIDs.pop()
 
-	# Compute a few DAF columns
-	genoAnnot['DOIDs'] = DOIDs
-
-	genoAnnot['ROLLEDUPGENES'] = self.getRolledUpGenes(genoAnnot['genoID'])
-
-	genoAnnot['REFID'] = self.getReferenceID(genoAnnot['pubmedID'],
-							genoAnnot['mgiRefID'])
-
-	dafRow = []
-	for dafColDesc in DafFormatter.dafColumns:
-	    value = dafColDesc['constant'] if dafColDesc.has_key('constant') \
-			    else str(genoAnnot[ dafColDesc['field'] ])
-	    if value == 'None': value = ''
-	    dafRow.append(value)
-
-	return '\t'.join(dafRow) + '\n'
+	jobj = {
+	'Taxon'				: 'taxon:' + TAXONID,
+	'DB Object Type'		: 'genotype',
+	'DB'				: 'MGI',
+	'DB Object ID'			: ga['genoID'],
+	'DB Object Symbol'		: ga['genoName'],
+	'Inferred gene association'	: self.getRolledUpGenes(ga['genoID']),
+	'Gene Product Form ID'		: '',
+	'Experimental conditions'	: '',
+	'Association type'		: '',
+	'Qualifier'			: ga['qualifier'],
+	'DO ID'				: doID,
+	'With'				: '',
+	'Modifier - association type'	: '',
+	'Modifier - Qualifier'		: '',
+	'Modifier - genetic'		: '',
+	'Modifier - experimental conditions': '',
+	'Evidence Code'			: ga['evidenceCode'],
+	'genetic sex'			: '',
+	'db:Reference'			: self.getReferenceID( ga['pubmedID'],
+							       ga['mgiRefID'] ),
+	'Date'				: ga['annotDate'],
+	'Assigned By'			: 'MGI',
+	}
+	return jobj
 
 ######## end Class DafFormatter
 
 def main(ids):
-    service    = Service(MOUSEMINEURL)
-    annotQuery = GenoAnnotationQuery(service, ids)
-    df         = DafFormatter(service)
+    service = Service(MOUSEMINEURL)
+    query   = GenoAnnotationQuery(service, ids)
+    df      = DafFormatter(service)
 
-    sys.stdout.write( df.getDafHeader() )
+    annotJobjs = []
+    for annot in query.annotations():
+	annotJson = df.getAnnotJsonObj(annot)
+	if annotJson != None:	# Can be None if the OMIMID doesn't map to DOID.
+				# Once MM starts storing DO annotations, 
+				#  this check won't be necessary as the query
+				#  will only return annots to DO.
+	    annotJobjs.append(annotJson)
 
-    for genoAnnot in annotQuery.annotations():
-	sys.stdout.write( df.formatDafRow( genoAnnot ) )
+    jobj = {
+      "metaData" : buildMetaObject(service),
+      "data"     : annotJobjs
+      }
+    print json.dumps(jobj, sort_keys=True, indent=2, separators=(',', ': ')),
+
 #####
 
 main(sys.argv[1:]) 	# optional geno IDs on the cmd line to restrict query
