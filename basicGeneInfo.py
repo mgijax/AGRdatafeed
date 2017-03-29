@@ -26,6 +26,8 @@ import types
 import argparse
 from ConfigParser import ConfigParser
 
+from AGRlib import stripNulls, buildMetaObject
+
 # nonstandard dependencies
 
 # See: http://henry.precheur.org/projects/rfc3339 
@@ -67,28 +69,6 @@ def getTimeStamp():
 mousemine = Service(MOUSEMINEURL)
 
 #-----------------------------------
-
-# Constructs and returns the metaData (header) for the dump file.
-#
-def buildMetaObject(service):
-    # get current date
-    currentDate = getTimeStamp()
-
-    # Get the MGI release date, which is embedded in the description field of the MGI DataSource obj
-    # For example, "Mouse Genome Informatics [MGI 6.07 2017-01-24]"
-    release = None
-    query = service.new_query("DataSource")
-    query.add_view("name", "description")
-    query.add_constraint("name", "=", "MGI", code = "B")
-    for r in query:
-      i = r.description.find('[')
-      release = r.description[i:].strip()[1:-1].strip()
-
-    return {
-    "dataProvider" : "MGI",
-    "dateProduced" : currentDate,
-    "release" : release
-    }
 
 # Constructs and returns the core of the query, suitable for any SequenceFeature subclass.
 #
@@ -208,15 +188,6 @@ def formatGenomeLocation(obj):
 	    "chromosome"	: obj.chromosome.primaryIdentifier,
 	})
     return locations
-
-# The AGR spec is to leave out attributes that would otherwise have a null value or an empty list value.
-# The implementation constructs complete objects, then calls this function to strip out any nulls/empty lists.
-#
-def stripNulls(obj):
-  for k,v in obj.items():
-    if v is None or type(v) is types.ListType and len(v) == 0:
-      del obj[k]
-  return obj
 
 # Here is the magic by which an object returned by the query is converted to an object
 # conforming to the spec.
