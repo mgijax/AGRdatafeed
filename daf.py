@@ -1,11 +1,14 @@
 #!/usr/bin/env python2.7
 
-# Create DAF (disease annot file) file for AGR data ingest.
+# Create JSON file describing genotype-disease annotations for AGR data ingest.
 # Pulls data from MouseMine.
-# Writes DAF to stdout.
+# Writes JSON to stdout.
+# See JSON spec at:
+#https://github.com/alliance-genome/agr_schemas/blob/development/disease/diseaseModelAnnotation.json
+# (this is development branch, might want to see master branch too)
 # For debugging, accepts optional MGI IDs for genotypes on command line
 #   to restrict output to DAF records for those genotypes.
-# Example genotype ID:  MGI:5526095 MGI:2175208
+# Example genotype ID:  MGI:5526095 MGI:2175208 MGI:5588576
 #
 # Author: jim kadin
 
@@ -22,7 +25,6 @@ cp.read("config.cfg")
 
 MOUSEMINEURL    = cp.get("DEFAULT","MOUSEMINEURL")
 TAXONID         = cp.get("DEFAULT","TAXONID")
-#DAFHEADER	= cp.get("dafFile","DAFHEADER") 
 
 ########
 class OmimToDOfinder (object):
@@ -64,12 +66,12 @@ class OmimToDOfinder (object):
 
 class GenoToGeneFinder (object):
     # find rolled up gene(s) for a genotype to disease annotation
-    # build and provide a mapping from OMIM IDs to DO IDs
 
     def __init__(self, service):
 	query = self.buildQuery(service)
 	self.buildMapping(query)
     ######
+
     def genoToRolledUpGenes(self, genoID):
 	return self.genoToGene.get(genoID, set())
 
@@ -107,7 +109,6 @@ class GenoToGeneFinder (object):
 	    self.genoToGene.setdefault(genoID,set()).add(geneID)
 ####### end class GenoToGeneFinder
 
-#####
 class GenoAnnotationQuery (object): 
     # Provide an iterator, annotations(), for all genotype disease annotations
     #   pulled from MouseMine.
@@ -186,99 +187,81 @@ class GenoAnnotationQuery (object):
 
 ####### end class GenoAnnotationQuery
 
-class DafFormatter(object):
-    # knows the structure of a DAF file, formats an annotation for the file, etc
-
-    #########
-    # Structure of a DAF file.
-    # Some of these fields (columns) are constant for us, some come from 
-    #  from MouseMine, some are computed.
-    # The "field" for a column is the genotype Annotation record field name
-    #	that holds the contents for the column.
-    #
-    dafColumns = [		# ordered by the columns in the DAF file
-    {'colName': 'Taxon',		       'constant': 'taxon:'+ TAXONID},
-    {'colName': 'DB Object Type',	       'constant': 'genotype'},
-    {'colName': 'DB',		 	       'constant': 'MGI'},
-    {'colName': 'DB Object ID',  	          'field': 'genoID'},
-    {'colName': 'DB Object Symbol',	          'field': 'genoName'},
-    {'colName': 'Inferred gene association',      'field': 'ROLLEDUPGENES'},
-    {'colName': 'Gene Product Form ID',	       'constant': ''},
-    {'colName': 'Experimental conditions',     'constant': ''},
-    {'colName': 'Association type',            'constant': 'is_model_of'},
-    {'colName': 'Qualifier',			  'field': 'qualifier'},
-    {'colName': 'DO ID',                          'field': 'DOIDs'},
-    {'colName': 'With',                        'constant': ''},
-    {'colName': 'Modifier - association type', 'constant': ''},
-    {'colName': 'Modifier - Qualifier',	       'constant': ''},
-    {'colName': 'Modifier - genetic',	       'constant': ''},
-    {'colName': 'Modifier - experimental conditions',
-                                               'constant': ''},
-    {'colName': 'Evidence Code',		  'field': 'evidenceCode'},
-    {'colName': 'genetic sex',                 'constant': ''},
-    {'colName': 'DB:Reference', 		  'field': 'REFID' },
-    {'colName': 'Date',                           'field': 'annotDate'},
-    {'colName': 'Assigned By',                 'constant': 'MGI'},
-    ]
-    #########
+class DiseaseAnnotationFormatter(object):
+    # Knows the (json) structure of disease annotation.
+    # Creates/returns the json object for a disease annotation.
 
     def __init__(self, service):
 	self.geneFinder = GenoToGeneFinder(service)
 	self.doFinder   = OmimToDOfinder(service)
 
-    def omim2DO(self, omimID):
-	# list of DO IDs for the given omimID
-	return [ d for d in self.doFinder.omimToDO(omimID) ]
-
-    def getRolledUpGenes(self, genoID):
-	# list of rolled up genes for the genotype
-	return [ g for g in self.geneFinder.genoToRolledUpGenes(genoID) ]
-    
-    def getReferenceID(self, pmID, mgiRefID):
-	# return the correct reference ID to use, pubmed or mgi
-	return pmID if pmID!='' and pmID!=None else  mgiRefID
-
     def getAnnotJsonObj(self, ga):
-	# return a json object representing the DAF row for genoAnnot (ga)
+	# return a json object representing a genoAnnot (ga)
 
-	# skip if no DO ids or more than one
-	DOIDs = self.omim2DO(ga['omimID'])
+	# get list of matching DO IDs based on annotation's OMIM ID
+	DOIDs = [ d for d in self.doFinder.omimToDO(ga['omimID']) ]
+
 	if len(DOIDs) != 1:
-	    return None
+	    return None		# skip if no DO ids or more than one
+
 	doID = DOIDs.pop()
 
-	jobj = {
-	'Taxon'				: 'taxon:' + TAXONID,
-	'DB Object Type'		: 'genotype',
-	'DB'				: 'MGI',
-	'DB Object ID'			: ga['genoID'],
-	'DB Object Symbol'		: ga['genoName'],
-	'Inferred gene association'	: self.getRolledUpGenes(ga['genoID']),
-	'Gene Product Form ID'		: '',
-	'Experimental conditions'	: '',
-	'Association type'		: '',
-	'Qualifier'			: ga['qualifier'],
-	'DO ID'				: doID,
-	'With'				: '',
-	'Modifier - association type'	: '',
-	'Modifier - Qualifier'		: '',
-	'Modifier - genetic'		: '',
-	'Modifier - experimental conditions': '',
-	'Evidence Code'			: ga['evidenceCode'],
-	'genetic sex'			: '',
-	'db:Reference'			: self.getReferenceID( ga['pubmedID'],
-							       ga['mgiRefID'] ),
-	'Date'				: ga['annotDate'],
-	'Assigned By'			: 'MGI',
-	}
-	return jobj
+	# Fields that are commented out are ones MGI doesn't use.
+	# No reason to set them. If they were set to null or [], stripNulls()
+	#   would remove them anyway.
+	return stripNulls( \
+	{
+	'taxonID'			: TAXONID,
+	'objectId'			: ga['genoID'],
+	'objectName'			: ga['genoName'],
+	'objectRelation'		: self.getObjectRelationObj(ga),
+	#'experimentalConditions'	: [],
+	'qualifier'			: ga['qualifier'],
+	'DOid'				: doID,
+	#'with'				: [],
+	#'modifier'			: None,
+	'evidence'			: self.getEvidenceObj(ga),
+	#'geneticSex'			: '',
+	'dateAssigned'			: ga['annotDate'],
+	'dataProvider'			: 'MGI',
+	} )
+    ######
 
-######## end Class DafFormatter
+    def getEvidenceObj(self, ga):
+	# see https://github.com/alliance-genome/agr_schemas/blob/development/disease/evidence.json
+	# for us, because of the way we pull annotations from MM,
+	#    we only have one pub for each annotation record.
+
+	pmID = ga['pubmedID']
+	if pmID == '': pmID = None
+
+	return \
+	[ { "evidenceCode" : ga['evidenceCode'],
+	    "publications" : [ { "publicationModId" : ga['mgiRefID'],
+	                         "pubMedId"         : pmID
+			       }
+			     ]
+	  }
+	]
+
+    def getObjectRelationObj(self, ga):
+	# see https://github.com/alliance-genome/agr_schemas/blob/development/disease/diseaseObjectRelation.json
+	
+	return \
+	{ "objectRelation" :
+	  { "associationType" : "is_model_of",
+	    "objectType"      : "genotype",
+	    "inferredGeneAssociation" :
+	      [ g for g in self.geneFinder.genoToRolledUpGenes( ga['genoID'] ) ]
+	  }
+	}
+    
+######## end Class DiseaseAnnotationFormatter
 
 def main(ids):
     service = Service(MOUSEMINEURL)
     query   = GenoAnnotationQuery(service, ids)
-    df      = DafFormatter(service)
+    df      = DiseaseAnnotationFormatter(service)
 
     annotJobjs = []
     for annot in query.annotations():
@@ -298,4 +281,3 @@ def main(ids):
 #####
 
 main(sys.argv[1:]) 	# optional geno IDs on the cmd line to restrict query
-
