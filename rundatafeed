@@ -2,7 +2,7 @@
 # run the AGR datafeed
 
 # default output file names
-DAFoutput=MGI_0.3_disease.daf.txt
+DAFoutput=MGI_0.3_diseaseAnnotations.json
 BGIoutput=MGI_0.3_basicGeneInformation.json
 
 function Usage() {
@@ -25,9 +25,9 @@ if [ "$1" == --help ]; then
     Usage
 fi
 
-# PYTHON path - just ./lib - hopefully this works
+# PYTHON path - just . and ./lib - hopefully this works
 dir="$(dirname $0)"
-PYTHONPATH="${dir}/lib"
+PYTHONPATH="${dir}:${dir}/lib"
 export PYTHONPATH
 
 # defaults
@@ -62,5 +62,5 @@ if [ $runBGI == T ]; then
     ./basicGeneInfo.py $* > $BGIoutput
 fi
 if [ $runDAF == T ]; then
-    ./daf.py $* > $DAFoutput
+    ./diseaseAnnotations.py $* > $DAFoutput
 fi
