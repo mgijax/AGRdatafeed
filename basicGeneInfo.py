@@ -46,6 +46,7 @@ TAXONID		= cp.get("DEFAULT","TAXONID")
 GENELITURL	= cp.get("DEFAULT","GENELITURL")
 MYGENEURL	= cp.get("DEFAULT","MYGENEURL")
 SAMPLEIDS	= cp.get("DEFAULT","SAMPLEIDS").split()
+PREFIX		= "MGI:"
 
 # Mapping from data provider name as stored in MGI to name as needed by AGR
 # Cross references exported to the file are limited to those where the provider's name
@@ -194,7 +195,7 @@ def formatGenomeLocation(obj):
 #
 def getJsonObj(obj):
   return stripNulls({
-    "primaryId"		: obj.primaryIdentifier,
+    "primaryId"		: PREFIX + obj.primaryIdentifier,
     "symbol"		: obj.symbol,
     "name"		: obj.name,
     "geneSynopsis"	: obj.description,
@@ -203,7 +204,7 @@ def getJsonObj(obj):
     "soTermId"		: obj.sequenceOntologyTerm.identifier,
     "taxonId"		: TAXONID,
     "synonyms"		: [ s.value for s in obj.synonyms if not isSecondaryId(s.value) ],
-    "secondaryIds"	: [ s.value for s in obj.synonyms if isSecondaryId(s.value) ],
+    "secondaryIds"	: [ PREFIX + s.value for s in obj.synonyms if isSecondaryId(s.value) ],
     "crossReferences"	: formatXrefs(obj),
     "genomeLocations"	: formatGenomeLocation(obj)
   })
