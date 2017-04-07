@@ -21,6 +21,9 @@ GENELITURL: http://www.informatics.jax.org/reference/marker/%s?typeFilter=Litera
 # Base URL for MyGene wiki pages
 MYGENEURL: https://en.wikipedia.org/wiki/
 
+# Should we prefix MGI IDs with "MGI:"
+PREFIX_IDS: true
+
 # for each xref provider name that we want to export, add an entry mapping our 
 # name to the AGR standard.
 #
