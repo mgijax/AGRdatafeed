@@ -16,7 +16,7 @@ import sys
 import json
 from ConfigParser import ConfigParser
 from intermine.webservice import Service
-from AGRlib import stripNulls, buildMetaObject
+from AGRlib import AGRjsonFormatter, buildMetaObject
 
 ##### Load config
 cp = ConfigParser()
@@ -25,6 +25,7 @@ cp.read("config.cfg")
 
 MOUSEMINEURL    = cp.get("DEFAULT","MOUSEMINEURL")
 TAXONID         = cp.get("DEFAULT","TAXONID")
+RFC3339TIME	= "T10:00:00-05:00"	# add to dates to make RFC3339 date/time
 
 ########
 class OmimToDOfinder (object):
@@ -191,9 +192,10 @@ class DiseaseAnnotationFormatter(object):
     # Knows the (json) structure of disease annotation.
     # Creates/returns the json object for a disease annotation.
 
-    def __init__(self, service):
+    def __init__(self, config, service):
 	self.geneFinder = GenoToGeneFinder(service)
 	self.doFinder   = OmimToDOfinder(service)
+	self.AGRjf      = AGRjsonFormatter(config)
 
     def getAnnotJsonObj(self, ga):
 	# return a json object representing a genoAnnot (ga)
@@ -209,23 +211,27 @@ class DiseaseAnnotationFormatter(object):
 	# Fields that are commented out are ones MGI doesn't use.
 	# No reason to set them. If they were set to null or [], stripNulls()
 	#   would remove them anyway.
-	return stripNulls( \
+	return self.AGRjf.stripNulls( \
 	{
-	'taxonID'			: TAXONID,
+	'taxonId'			: TAXONID,
 	'objectId'			: ga['genoID'],
 	'objectName'			: ga['genoName'],
 	'objectRelation'		: self.getObjectRelationObj(ga),
 	#'experimentalConditions'	: [],
-	'qualifier'			: ga['qualifier'],
+	'qualifier'			: self.getQualifier(ga),
 	'DOid'				: doID,
 	#'with'				: [],
 	#'modifier'			: None,
 	'evidence'			: self.getEvidenceObj(ga),
 	#'geneticSex'			: '',
-	'dateAssigned'			: ga['annotDate'],
+	'dateAssigned'			: ga['annotDate'] + RFC3339TIME,
 	'dataProvider'			: 'MGI',
 	} )
     ######
+
+    def getQualifier(self,ga):
+	if ga['qualifier'] is None: return None
+	else: return ga['qualifier'].lower()
 
     def getEvidenceObj(self, ga):
 	# see https://github.com/alliance-genome/agr_schemas/blob/development/disease/evidence.json
@@ -248,20 +254,19 @@ class DiseaseAnnotationFormatter(object):
 	# see https://github.com/alliance-genome/agr_schemas/blob/development/disease/diseaseObjectRelation.json
 	
 	return \
-	{ "objectRelation" :
 	  { "associationType" : "is_model_of",
 	    "objectType"      : "genotype",
 	    "inferredGeneAssociation" :
-	      [ g for g in self.geneFinder.genoToRolledUpGenes( ga['genoID'] ) ]
+	      [ self.AGRjf.addIDprefix(g) for g in
+			  self.geneFinder.genoToRolledUpGenes( ga['genoID'] ) ]
 	  }
-	}
     
 ######## end Class DiseaseAnnotationFormatter
 
 def main(ids):
     service = Service(MOUSEMINEURL)
     query   = GenoAnnotationQuery(service, ids)
-    df      = DiseaseAnnotationFormatter(service)
+    df      = DiseaseAnnotationFormatter(cp, service)
 
     annotJobjs = []
     for annot in query.annotations():
