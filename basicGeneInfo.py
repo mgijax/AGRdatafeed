@@ -26,14 +26,9 @@ import types
 import argparse
 from ConfigParser import ConfigParser
 
-from AGRlib import stripNulls, buildMetaObject
-
 # nonstandard dependencies
-
-# See: http://henry.precheur.org/projects/rfc3339 
-from rfc3339 import rfc3339
+from AGRlib import AGRjsonFormatter, buildMetaObject
 from intermine.webservice import Service
-
 
 #-----------------------------------
 # Load config
@@ -46,7 +41,6 @@ TAXONID		= cp.get("DEFAULT","TAXONID")
 GENELITURL	= cp.get("DEFAULT","GENELITURL")
 MYGENEURL	= cp.get("DEFAULT","MYGENEURL")
 SAMPLEIDS	= cp.get("DEFAULT","SAMPLEIDS").split()
-PREFIX		= "MGI:"
 
 # Mapping from data provider name as stored in MGI to name as needed by AGR
 # Cross references exported to the file are limited to those where the provider's name
@@ -56,21 +50,15 @@ for n in cp.options("dataProviders"):
     dataProviders[n] = cp.get("dataProviders", n)
 
 #-----------------------------------
-# RFC 3339 timestamps
-
-# Returns the current date-time in RFC-3339 format
-# Example: "2017-01-26T15:00:42-05:00"
-#
-def getTimeStamp():
-    return rfc3339(time.time())
-
-#-----------------------------------
 # MouseMine connection
 
 mousemine = Service(MOUSEMINEURL)
 
 #-----------------------------------
+# AGR formatter that knows how to cleanse an AGR json obj
+AGRcleaner = AGRjsonFormatter(cp)
 
+#-----------------------------------
 # Constructs and returns the core of the query, suitable for any SequenceFeature subclass.
 #
 def buildSequenceFeatureQuery(service, subclassName, ids):
@@ -194,8 +182,8 @@ def formatGenomeLocation(obj):
 # conforming to the spec.
 #
 def getJsonObj(obj):
-  return stripNulls({
-    "primaryId"		: PREFIX + obj.primaryIdentifier,
+  return AGRcleaner.stripNulls({
+    "primaryId"		: AGRcleaner.addIDprefix(obj.primaryIdentifier),
     "symbol"		: obj.symbol,
     "name"		: obj.name,
     "geneSynopsis"	: obj.description,
@@ -204,7 +192,7 @@ def getJsonObj(obj):
     "soTermId"		: obj.sequenceOntologyTerm.identifier,
     "taxonId"		: TAXONID,
     "synonyms"		: [ s.value for s in obj.synonyms if not isSecondaryId(s.value) ],
-    "secondaryIds"	: [ PREFIX + s.value for s in obj.synonyms if isSecondaryId(s.value) ],
+    "secondaryIds"	: [ s.value for s in obj.synonyms if isSecondaryId(s.value) ],
     "crossReferences"	: formatXrefs(obj),
     "genomeLocations"	: formatGenomeLocation(obj)
   })
