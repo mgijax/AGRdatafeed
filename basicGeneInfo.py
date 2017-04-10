@@ -27,7 +27,7 @@ import argparse
 from ConfigParser import ConfigParser
 
 # nonstandard dependencies
-from AGRlib import AGRjsonFormatter, buildMetaObject
+from AGRlib import AGRjsonFormatter, buildMetaObject, IDPREFIX
 from intermine.webservice import Service
 
 #-----------------------------------
@@ -184,6 +184,8 @@ def formatGenomeLocation(obj):
 def getJsonObj(obj):
   return AGRcleaner.stripNulls({
     "primaryId"		: AGRcleaner.addIDprefix(obj.primaryIdentifier),
+    "primaryIdDisplay"	: obj.primaryIdentifier,
+    "primaryIdPrefix"	: IDPREFIX,
     "symbol"		: obj.symbol,
     "name"		: obj.name,
     "geneSynopsis"	: obj.description,
