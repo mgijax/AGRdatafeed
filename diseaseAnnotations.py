@@ -25,6 +25,8 @@ cp.read("config.cfg")
 
 MOUSEMINEURL    = cp.get("DEFAULT","MOUSEMINEURL")
 TAXONID         = cp.get("DEFAULT","TAXONID")
+DO_GENES        = cp.getboolean("dafFile","DO_GENES")
+DO_GENOS        = cp.getboolean("dafFile","DO_GENOS")
 RFC3339TIME	= "T10:00:00-05:00"	# add to dates to make RFC3339 date/time
 
 ########
@@ -74,7 +76,20 @@ class GenoToGeneFinder (object):
     ######
 
     def genoToRolledUpGenes(self, genoID):
-	return self.genoToGene.get(genoID, set())
+	# return list of (geneID, symbol) pairs that roll up to the genoID
+	return self.genoToGene.get(genoID, {}).keys()
+    ######
+
+    def buildMapping(self, query):
+
+	self.genoToGene = {}	# geneoToGene[genoID] == {(geneID:,symbol):1}
+				# There can be multiple rolled up genes:
+				#  1 example: gene + transgene if the TG
+				#   expresses the gene.
+	for row in query.rows():
+	    genoID = row["ontologyAnnotations.evidence.baseAnnotations.subject.primaryIdentifier"]
+	    geneInfo = (row["primaryIdentifier"], row["symbol"])
+	    self.genoToGene.setdefault(genoID,{})[geneInfo] = 1
 
     ######
     def buildQuery(self,service):
@@ -97,17 +112,6 @@ class GenoToGeneFinder (object):
 	query.add_constraint("organism.taxonId", "=", "10090", code = "C")
 	return query
     ######
-
-    def buildMapping(self, query):
-
-	self.genoToGene = {}	# geneoToGene[genoID] == set(GeneIDs)
-				# There can be multiple rolled up genes:
-				#  1 example: gene + transgene if the TG
-				#   expresses the gene.
-	for row in query.rows():
-	    genoID = row["ontologyAnnotations.evidence.baseAnnotations.subject.primaryIdentifier"]
-	    geneID = row["primaryIdentifier"]
-	    self.genoToGene.setdefault(genoID,set()).add(geneID)
 ####### end class GenoToGeneFinder
 
 class GenoAnnotationQuery (object): 
@@ -197,8 +201,9 @@ class DiseaseAnnotationFormatter(object):
 	self.doFinder   = OmimToDOfinder(service)
 	self.AGRjf      = AGRjsonFormatter(config)
 
-    def getAnnotJsonObj(self, ga):
-	# return a json object representing a genoAnnot (ga)
+    def getDoID(self, ga):
+	# return the DOID for the disease in genoAnnot (ga)
+	# Return None if the annotation does not map to a DOID
 
 	# get list of matching DO IDs based on annotation's OMIM ID
 	DOIDs = [ d for d in self.doFinder.omimToDO(ga['omimID']) ]
@@ -206,28 +211,93 @@ class DiseaseAnnotationFormatter(object):
 	if len(DOIDs) != 1:
 	    return None		# skip if no DO ids or more than one
 
-	doID = DOIDs.pop()
+	return DOIDs.pop()
+
+    def getGeneAnnotJsonObjs(self, ga):
+	# return list of gene annot json objects representing
+	#   the genoAnnot (ga)
+
+	doID = self.getDoID(ga)
+	if doID is None: return []	# annotation doesn't map to DO
+
+	rolledGenes = self.geneFinder.genoToRolledUpGenes( ga['genoID'] )
+
+	geneJsons = []
+	for geneID, symbol in rolledGenes:
+	    # Fields that are commented out are ones MGI doesn't use.
+	    # No reason to set them. If they were are null or [], stripNulls()
+	    #   would remove them anyway.
+	    geneJsons.append( self.AGRjf.stripNulls( \
+	    {
+	    'taxonId'			: TAXONID,
+	    'objectId'			: self.AGRjf.addIDprefix(geneID),
+	    'objectName'		: symbol,
+	    'objectRelation'		: self.getGeneObjectRelationObj(ga),
+	    #'experimentalConditions'	: [],
+	    'qualifier'			: self.getQualifier(ga),
+	    'DOid'			: doID,
+	    #'with'			: [],
+	    #'modifier'			: None,
+	    'evidence'			: self.getEvidenceObj(ga),
+	    #'geneticSex'		: '',
+	    'dateAssigned'		: ga['annotDate'] + RFC3339TIME,
+	    'dataProvider'		: 'MGI',
+	    } )
+	    )
+	return geneJsons
+    ######
+
+    def getGeneObjectRelationObj(self, ga):
+	# see https://github.com/alliance-genome/agr_schemas/blob/development/disease/diseaseObjectRelation.json
+	
+	return \
+	  { "associationType"	: "causes_condition",
+	    "objectType"	: "gene",
+	    "inferredFromID"	: ga["genoID"],		# MGI defined json attr
+	    "inferredFromName"	: ga["genoName"]	# MGI defined json attr
+	  }
+
+    def getGenoAnnotJsonObjs(self, ga):
+	# return list of genotype annot json objects representing
+	#   the genoAnnot (ga)
+
+	doID = self.getDoID(ga)
+	if doID is None: return []	# annotation doesn't map to DO
 
 	# Fields that are commented out are ones MGI doesn't use.
 	# No reason to set them. If they were set to null or [], stripNulls()
 	#   would remove them anyway.
-	return self.AGRjf.stripNulls( \
-	{
-	'taxonId'			: TAXONID,
-	'objectId'			: ga['genoID'],
-	'objectName'			: ga['genoName'],
-	'objectRelation'		: self.getObjectRelationObj(ga),
-	#'experimentalConditions'	: [],
-	'qualifier'			: self.getQualifier(ga),
-	'DOid'				: doID,
-	#'with'				: [],
-	#'modifier'			: None,
-	'evidence'			: self.getEvidenceObj(ga),
-	#'geneticSex'			: '',
-	'dateAssigned'			: ga['annotDate'] + RFC3339TIME,
-	'dataProvider'			: 'MGI',
-	} )
-    ######
+	return [ \
+	    self.AGRjf.stripNulls( \
+	    {
+	    'taxonId'		: TAXONID,
+	    'objectId'		: ga['genoID'],
+	    'objectName'	: ga['genoName'],
+	    'objectRelation'	: self.getGenoObjectRelationObj(ga),
+	    #'experimentalConditions': [],
+	    'qualifier'		: self.getQualifier(ga),
+	    'DOid'		: doID,
+	    #'with'		: [],
+	    #'modifier'		: None,
+	    'evidence'		: self.getEvidenceObj(ga),
+	    #'geneticSex'	: '',
+	    'dateAssigned'	: ga['annotDate'] + RFC3339TIME,
+	    'dataProvider'	: 'MGI',
+	    } )
+	    ]
+	######
+
+    def getGenoObjectRelationObj(self, ga):
+	# see https://github.com/alliance-genome/agr_schemas/blob/development/disease/diseaseObjectRelation.json
+	
+	rolledGenes = [ self.AGRjf.addIDprefix(g[0]) for g in
+		      self.geneFinder.genoToRolledUpGenes(ga['genoID']) ]
+
+	return \
+	  { "associationType" : "is_model_of",
+	    "objectType"      : "genotype",
+	    "inferredGeneAssociation" : rolledGenes
+	  }
 
     def getQualifier(self,ga):
 	if ga['qualifier'] is None: return None
@@ -249,17 +319,6 @@ class DiseaseAnnotationFormatter(object):
 			     ]
 	  }
 	]
-
-    def getObjectRelationObj(self, ga):
-	# see https://github.com/alliance-genome/agr_schemas/blob/development/disease/diseaseObjectRelation.json
-	
-	return \
-	  { "associationType" : "is_model_of",
-	    "objectType"      : "genotype",
-	    "inferredGeneAssociation" :
-	      [ self.AGRjf.addIDprefix(g) for g in
-			  self.geneFinder.genoToRolledUpGenes( ga['genoID'] ) ]
-	  }
     
 ######## end Class DiseaseAnnotationFormatter
 
@@ -268,18 +327,20 @@ def main(ids):
     query   = GenoAnnotationQuery(service, ids)
     df      = DiseaseAnnotationFormatter(cp, service)
 
-    annotJobjs = []
+    annotJsonObjs = []
     for annot in query.annotations():
-	annotJson = df.getAnnotJsonObj(annot)
-	if annotJson != None:	# Can be None if the OMIMID doesn't map to DOID.
+	if DO_GENOS: annotJsonObjs += df.getGenoAnnotJsonObjs(annot)
+				# Can be [] if OMIMID doesn't map to DOID.
 				# Once MM starts storing DO annotations, 
 				#  this check won't be necessary as the query
 				#  will only return annots to DO.
-	    annotJobjs.append(annotJson)
+	if DO_GENES: annotJsonObjs += df.getGeneAnnotJsonObjs(annot)
+				# Can be [] if OMIMID doesn't map to DOID.
+				# OR geno annot doesn't roll up to genes
 
     jobj = {
       "metaData" : buildMetaObject(service),
-      "data"     : annotJobjs
+      "data"     : annotJsonObjs
       }
     print json.dumps(jobj, sort_keys=True, indent=2, separators=(',', ': ')),
 

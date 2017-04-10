@@ -32,5 +32,5 @@ Entrez Gene: NCBIGene
 Ensembl Gene Model: Ensembl
 
 [dafFile]
-DAFHEADER:!daf-version 0.1
-    !Project_name: MGI
+DO_GENES: true
+DO_GENOS: false
