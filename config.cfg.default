@@ -13,7 +13,7 @@ MOUSEMINEURL: http://www.mousemine.org/mousemine/service
 SAMPLEIDS: MGI:96677 MGI:96449 MGI:2685845 MGI:5695867 MGI:87982
 
 # Mouse taxon id
-TAXONID: 10090
+TAXONID: NCBITaxon:10090
 
 # GeneLit url
 GENELITURL: http://www.informatics.jax.org/reference/marker/%s?typeFilter=Literature
@@ -28,7 +28,7 @@ PREFIX_IDS: true
 # name to the AGR standard.
 #
 [dataProviders]
-Entrez Gene: NCBIGene
+Entrez Gene: NCBI_Gene
 Ensembl Gene Model: Ensembl
 
 [dafFile]

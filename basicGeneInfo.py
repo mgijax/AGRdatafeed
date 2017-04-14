@@ -38,6 +38,7 @@ cp.read("config.cfg")
 
 MOUSEMINEURL	= cp.get("DEFAULT","MOUSEMINEURL")
 TAXONID		= cp.get("DEFAULT","TAXONID")
+taxon		= TAXONID[ TAXONID.find(":")+1 : ]
 GENELITURL	= cp.get("DEFAULT","GENELITURL")
 MYGENEURL	= cp.get("DEFAULT","MYGENEURL")
 SAMPLEIDS	= cp.get("DEFAULT","SAMPLEIDS").split()
@@ -78,7 +79,7 @@ def buildSequenceFeatureQuery(service, subclassName, ids):
     #
     query.add_sort_order("primaryIdentifier", "ASC")
     #
-    query.add_constraint("organism.taxonId", "=", TAXONID, code = "A")
+    query.add_constraint("organism.taxonId", "=", taxon, code = "A")
     query.add_constraint("dataSets.name", "=", "Mouse Gene Catalog from MGI", code = "B")
     if len(ids):
 	query.add_constraint("primaryIdentifier", "ONE OF", ids, code = "C")
@@ -114,9 +115,11 @@ def buildPseudogeneQuery(service, ids):
 
 # In MouseMine, synonyms and secondary ids are lumped together as "synonyms". 
 # This function distinguishes a synonym value as being either a secondary id or not.
+# Change for 0.6.1: old secondaries that start with "MGD-" made synonyms.
+# FIXME: Give these ids their own prefix and add a stanza to the resources.yaml file 
 #
 def isSecondaryId(identifier):
-    return identifier.startswith("MGI:") or identifier.startswith("MGD-")
+	return identifier.startswith("MGI:") # or identifier.startswith("MGD-")
 
 # Selects the xrefs to be exported for the object and formats them according to the spec.
 #	- restricts which xrefs are exported
@@ -137,7 +140,8 @@ def formatXrefs(obj):
 	        xrefs.add(("UniProtKB", x.uniprotAccession))
     xrefs = list(xrefs)
     xrefs.sort()
-    return [{"dataProvider":x[0],"id":x[1]} for x in xrefs]
+    #return [{"dataProvider":x[0],"id":x[1]} for x in xrefs]
+    return [x[0]+":"+x[1] for x in xrefs]
 
 # In the MGI fewi, mouse genes link to a MyGenes wiki page which is a human readable description.
 # The MyGenes page is for the HUMAN ortholog of the mouse gene.
@@ -183,9 +187,7 @@ def formatGenomeLocation(obj):
 #
 def getJsonObj(obj):
   return AGRcleaner.stripNulls({
-    "primaryId"		: AGRcleaner.addIDprefix(obj.primaryIdentifier),
-    "primaryIdDisplay"	: obj.primaryIdentifier,
-    "primaryIdPrefix"	: IDPREFIX,
+    "primaryId"		: obj.primaryIdentifier,
     "symbol"		: obj.symbol,
     "name"		: obj.name,
     "geneSynopsis"	: obj.description,
@@ -195,7 +197,7 @@ def getJsonObj(obj):
     "taxonId"		: TAXONID,
     "synonyms"		: [ s.value for s in obj.synonyms if not isSecondaryId(s.value) ],
     "secondaryIds"	: [ s.value for s in obj.synonyms if isSecondaryId(s.value) ],
-    "crossReferences"	: formatXrefs(obj),
+    "crossReferenceIds"	: formatXrefs(obj),
     "genomeLocations"	: formatGenomeLocation(obj)
   })
 
