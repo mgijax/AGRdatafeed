@@ -12,8 +12,8 @@
 # 4) figure out how to deposit files where needed
 
 # default output file names
-DAFoutput=MGI_0.3_diseaseAnnotations.json
-BGIoutput=MGI_0.3_basicGeneInformation.json
+DAFoutput=MGI_0.6.2_diseaseAnnotations.json
+BGIoutput=MGI_0.6.2_basicGeneInformation.json
 
 function Usage() {
     cat - <<ENDTEXT

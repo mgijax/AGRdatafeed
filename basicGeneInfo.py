@@ -37,8 +37,8 @@ cp.optionxform = str # make keys case sensitive
 cp.read("config.cfg")
 
 MOUSEMINEURL	= cp.get("DEFAULT","MOUSEMINEURL")
-TAXONID		= cp.get("DEFAULT","TAXONID")
-taxon		= TAXONID[ TAXONID.find(":")+1 : ]
+taxon		= cp.get("DEFAULT","TAXONID")
+GLOBALTAXONID	= cp.get("DEFAULT","GLOBALTAXONID")
 GENELITURL	= cp.get("DEFAULT","GENELITURL")
 MYGENEURL	= cp.get("DEFAULT","MYGENEURL")
 SAMPLEIDS	= cp.get("DEFAULT","SAMPLEIDS").split()
@@ -194,7 +194,7 @@ def getJsonObj(obj):
     "geneSynopsisUrl"	: formatMyGeneLink(obj),
     "geneLiteratureUrl"	: GENELITURL % obj.primaryIdentifier,
     "soTermId"		: obj.sequenceOntologyTerm.identifier,
-    "taxonId"		: TAXONID,
+    "taxonId"		: GLOBALTAXONID,
     "synonyms"		: [ s.value for s in obj.synonyms if not isSecondaryId(s.value) ],
     "secondaryIds"	: [ s.value for s in obj.synonyms if isSecondaryId(s.value) ],
     "crossReferenceIds"	: formatXrefs(obj),

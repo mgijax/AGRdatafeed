@@ -25,6 +25,7 @@ cp.read("config.cfg")
 
 MOUSEMINEURL    = cp.get("DEFAULT","MOUSEMINEURL")
 TAXONID         = cp.get("DEFAULT","TAXONID")
+GLOBALTAXONID   = cp.get("DEFAULT","GLOBALTAXONID")
 DO_GENES        = cp.getboolean("dafFile","DO_GENES")
 DO_GENOS        = cp.getboolean("dafFile","DO_GENOS")
 RFC3339TIME	= "T10:00:00-05:00"	# add to dates to make RFC3339 date/time
@@ -229,7 +230,7 @@ class DiseaseAnnotationFormatter(object):
 	    #   would remove them anyway.
 	    geneJsons.append( self.AGRjf.stripNulls( \
 	    {
-	    'taxonId'			: TAXONID,
+	    'taxonId'			: GLOBALTAXONID,
 	    'objectId'			: self.AGRjf.addIDprefix(geneID),
 	    'objectName'		: symbol,
 	    'objectRelation'		: self.getGeneObjectRelationObj(ga),
@@ -270,7 +271,7 @@ class DiseaseAnnotationFormatter(object):
 	return [ \
 	    self.AGRjf.stripNulls( \
 	    {
-	    'taxonId'		: TAXONID,
+	    'taxonId'		: GLOBALTAXONID,
 	    'objectId'		: ga['genoID'],
 	    'objectName'	: ga['genoName'],
 	    'objectRelation'	: self.getGenoObjectRelationObj(ga),
@@ -313,7 +314,7 @@ class DiseaseAnnotationFormatter(object):
 
 	return \
 	[ { "evidenceCode" : ga['evidenceCode'],
-	    "publications" : [ { "publicationModId" : ga['mgiRefID'],
+	    "publications" : [ { "modPublicationId" : ga['mgiRefID'],
 	                         "pubMedId"         : pmID
 			       }
 			     ]

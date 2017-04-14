@@ -13,7 +13,8 @@ MOUSEMINEURL: http://www.mousemine.org/mousemine/service
 SAMPLEIDS: MGI:96677 MGI:96449 MGI:2685845 MGI:5695867 MGI:87982
 
 # Mouse taxon id
-TAXONID: NCBITaxon:10090
+TAXONID: 10090
+GLOBALTAXONID: NCBITaxon:%(TAXONID)s
 
 # GeneLit url
 GENELITURL: http://www.informatics.jax.org/reference/marker/%s?typeFilter=Literature
@@ -22,7 +23,7 @@ GENELITURL: http://www.informatics.jax.org/reference/marker/%s?typeFilter=Litera
 MYGENEURL: https://en.wikipedia.org/wiki/
 
 # Should we prefix MGI IDs with "MGI:"
-PREFIX_IDS: true
+PREFIX_IDS: false
 
 # for each xref provider name that we want to export, add an entry mapping our 
 # name to the AGR standard.
