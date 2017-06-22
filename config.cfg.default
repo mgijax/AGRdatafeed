@@ -30,7 +30,7 @@ PREFIX_IDS: false
 #
 [dataProviders]
 Entrez Gene: NCBI_Gene
-Ensembl Gene Model: Ensembl
+Ensembl Gene Model: ENSEMBL
 
 [dafFile]
 DO_GENES: true
