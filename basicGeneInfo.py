@@ -36,12 +36,12 @@ cp = ConfigParser()
 cp.optionxform = str # make keys case sensitive
 cp.read("config.cfg")
 
-MOUSEMINEURL	= cp.get("DEFAULT","MOUSEMINEURL")
-taxon		= cp.get("DEFAULT","TAXONID")
-GLOBALTAXONID	= cp.get("DEFAULT","GLOBALTAXONID")
-GENELITURL	= cp.get("DEFAULT","GENELITURL")
-MYGENEURL	= cp.get("DEFAULT","MYGENEURL")
-SAMPLEIDS	= cp.get("DEFAULT","SAMPLEIDS").split()
+MOUSEMINEURL  = cp.get("DEFAULT","MOUSEMINEURL")
+taxon         = cp.get("DEFAULT","TAXONID")
+GLOBALTAXONID = cp.get("DEFAULT","GLOBALTAXONID")
+GENELITURL    = cp.get("DEFAULT","GENELITURL")
+MYGENEURL     = cp.get("DEFAULT","MYGENEURL")
+SAMPLEIDS     = cp.get("DEFAULT","SAMPLEIDS").split()
 
 # Mapping from data provider name as stored in MGI to name as needed by AGR
 # Cross references exported to the file are limited to those where the provider's name
@@ -115,11 +115,12 @@ def buildPseudogeneQuery(service, ids):
 
 # In MouseMine, synonyms and secondary ids are lumped together as "synonyms". 
 # This function distinguishes a synonym value as being either a secondary id or not.
-# Change for 0.6.1: old secondaries that start with "MGD-" made synonyms.
-# FIXME: Give these ids their own prefix and add a stanza to the resources.yaml file 
 #
 def isSecondaryId(identifier):
-	return identifier.startswith("MGI:") # or identifier.startswith("MGD-")
+	return identifier.startswith("MGI:") or identifier.startswith("MGD-")
+
+def formatSecondary(identifier):
+  return ("MGD_old:" if identifier.startswith("MGD-") else "") + identifier
 
 # Selects the xrefs to be exported for the object and formats them according to the spec.
 #	- restricts which xrefs are exported
@@ -190,13 +191,13 @@ def getJsonObj(obj):
     "primaryId"		: obj.primaryIdentifier,
     "symbol"		: obj.symbol,
     "name"		: obj.name,
-    "geneSynopsis"	: obj.description,
+    "geneSynopsis"	: None,
     "geneSynopsisUrl"	: formatMyGeneLink(obj),
     "geneLiteratureUrl"	: GENELITURL % obj.primaryIdentifier,
     "soTermId"		: obj.sequenceOntologyTerm.identifier,
     "taxonId"		: GLOBALTAXONID,
     "synonyms"		: [ s.value for s in obj.synonyms if not isSecondaryId(s.value) ],
-    "secondaryIds"	: [ s.value for s in obj.synonyms if isSecondaryId(s.value) ],
+    "secondaryIds"	: [ formatSecondary(s.value) for s in obj.synonyms if isSecondaryId(s.value) ],
     "crossReferenceIds"	: formatXrefs(obj),
     "genomeLocations"	: formatGenomeLocation(obj)
   })
