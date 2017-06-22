@@ -42,6 +42,7 @@ GLOBALTAXONID = cp.get("DEFAULT","GLOBALTAXONID")
 GENELITURL    = cp.get("DEFAULT","GENELITURL")
 MYGENEURL     = cp.get("DEFAULT","MYGENEURL")
 SAMPLEIDS     = cp.get("DEFAULT","SAMPLEIDS").split()
+MGD_OLD_PREFIX= cp.get("DEFAULT","MGD_OLD_PREFIX")
 
 # Mapping from data provider name as stored in MGI to name as needed by AGR
 # Cross references exported to the file are limited to those where the provider's name
@@ -119,8 +120,11 @@ def buildPseudogeneQuery(service, ids):
 def isSecondaryId(identifier):
 	return identifier.startswith("MGI:") or identifier.startswith("MGD-")
 
+# For AGR, old style MGD ids must be given a distinct global prefix (we're using 'MGD_old:') and have 
+# a stanza describing that kind of ID in the resourceDescriptors.yaml file. This routine adds the 
+# prefix, if appropriate,
 def formatSecondary(identifier):
-  return ("MGD_old:" if identifier.startswith("MGD-") else "") + identifier
+  return (MGD_OLD_PREFIX if identifier.startswith("MGD-") else "") + identifier
 
 # Selects the xrefs to be exported for the object and formats them according to the spec.
 #	- restricts which xrefs are exported

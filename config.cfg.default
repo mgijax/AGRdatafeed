@@ -25,6 +25,13 @@ MYGENEURL: https://en.wikipedia.org/wiki/
 # Should we prefix MGI IDs with "MGI:"
 PREFIX_IDS: false
 
+# For AGR, need to define a global prefix to prepend to old-style MGD ids.
+# In the BGI json file, MGD-MRK-12345 would become MGD_old:MGD-MRK-12345
+# Note that this prefix must agree with the one defined in the AGR resourceDescriptors.yaml
+# file, located here: https://github.com/alliance-genome/agr_schemas/blob/master/resourceDescriptors.yaml
+# 
+MGD_OLD_PREFIX: MGD_old:
+
 # for each xref provider name that we want to export, add an entry mapping our 
 # name to the AGR standard.
 #
