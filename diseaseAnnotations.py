@@ -1,6 +1,8 @@
 #!/usr/bin/env python2.7
 
 # Create JSON file describing genotype-disease annotations for AGR data ingest.
+# Usage:
+#       python diseaseAnnotations.py > MGI_0.6.2_diseaseAnnotations.json
 # Pulls data from MouseMine.
 # Writes JSON to stdout.
 # See JSON spec at:
@@ -9,6 +11,7 @@
 # For debugging, accepts optional MGI IDs for genotypes on command line
 #   to restrict output to DAF records for those genotypes.
 # Example genotype ID:  MGI:5526095 MGI:2175208 MGI:5588576
+#       python diseaseAnnotations.py MGI:5526095 MGI:2175208 MGI:5588576 > sample.json
 #
 # Author: jim kadin
 
@@ -31,46 +34,8 @@ DO_GENOS        = cp.getboolean("dafFile","DO_GENOS")
 RFC3339TIME	= "T10:00:00-05:00"	# add to dates to make RFC3339 date/time
 
 ########
-class OmimToDOfinder (object):
-    # build and provide a mapping from OMIM IDs to DO IDs
-
-    def __init__(self, service):
-	query = self.buildQuery(service)
-	self.buildMapping(query)
-    ######
-    def omimToDO(self, OmimID):
-	return self.OmimToDO.get(OmimID, set())
-
-    ######
-    def buildQuery(self,service):
-
-	# Get a new query on the class (table) you will be querying:
-	query = service.new_query("OMIMTerm")
-
-	# Type constraints should come early
-	query.add_constraint("crossReferences", "DOTerm")
-
-	# The view specifies the output columns
-	query.add_view("crossReferences.identifier",
-			"crossReferences.name",
-			"identifier",		# from MM, these have "OMIM:"
-			"name")
-	return query
-    ######
-
-    def buildMapping(self, query):
-
-	self.OmimToDO = {}	# OmimToDO[OMIM ID] == set(DO IDs)
-				# could be 0 or >1 in odd cases
-	for row in query.rows():
-	    OmimID = str(row["identifier"])
-	    DOID   = row["crossReferences.identifier"]
-	    self.OmimToDO.setdefault(OmimID,set()).add(DOID)
-####### end class OmimToDOfinder
-
 class GenoToGeneFinder (object):
-    # find rolled up gene(s) for a genotype to disease annotation
-
+    # Builds a mapping from genotypes to rolled-up gene(s).
     def __init__(self, service):
 	query = self.buildQuery(service)
 	self.buildMapping(query)
@@ -133,14 +98,14 @@ class GenoAnnotationQuery (object):
 	query = self.service.new_query("Genotype")
 
 	#Type constraints come before all mentions of the paths they constrain
-	query.add_constraint("ontologyAnnotations.ontologyTerm", "OMIMTerm")
+	query.add_constraint("ontologyAnnotations.ontologyTerm", "DOTerm")
 	if len(self.ids):
 	    query.add_constraint("primaryIdentifier", "ONE OF", self.ids)
 
 	# The view specifies the output columns
 	query.add_view(
 	    "primaryIdentifier", "name",
-	    "ontologyAnnotations.ontologyTerm.omimId",
+	    "ontologyAnnotations.ontologyTerm.identifier",
 	    "ontologyAnnotations.ontologyTerm.name",
 	    "ontologyAnnotations.qualifier",
 	    "ontologyAnnotations.evidence.code.code",
@@ -162,16 +127,12 @@ class GenoAnnotationQuery (object):
 	    if pubmedID != '' and pubmedID != None:
 		pubmedID = 'PMID:' + str(pubmedID)
 
-	    # 'OMIM:' prefix
-	    omimID = 'OMIM:' + \
-	     str(genoAnnot['Genotype.ontologyAnnotations.ontologyTerm.omimId'])
-
 	    result = {
 	    'genoID'  : genoAnnot['Genotype.primaryIdentifier'],
 	    'genoName': genoAnnot['Genotype.name'],
-	    'omimID'  : omimID,
+	    'doID'  : genoAnnot['Genotype.ontologyAnnotations.ontologyTerm.identifier'],
 
-	    'omimTerm':
+	    'doTerm':
 	      genoAnnot['Genotype.ontologyAnnotations.ontologyTerm.name'],
 
 	    'qualifier':
@@ -199,27 +160,13 @@ class DiseaseAnnotationFormatter(object):
 
     def __init__(self, config, service):
 	self.geneFinder = GenoToGeneFinder(service)
-	self.doFinder   = OmimToDOfinder(service)
 	self.AGRjf      = AGRjsonFormatter(config)
-
-    def getDoID(self, ga):
-	# return the DOID for the disease in genoAnnot (ga)
-	# Return None if the annotation does not map to a DOID
-
-	# get list of matching DO IDs based on annotation's OMIM ID
-	DOIDs = [ d for d in self.doFinder.omimToDO(ga['omimID']) ]
-
-	if len(DOIDs) != 1:
-	    return None		# skip if no DO ids or more than one
-
-	return DOIDs.pop()
 
     def getGeneAnnotJsonObjs(self, ga):
 	# return list of gene annot json objects representing
 	#   the genoAnnot (ga)
 
-	doID = self.getDoID(ga)
-	if doID is None: return []	# annotation doesn't map to DO
+	doID = ga['doID']
 
 	rolledGenes = self.geneFinder.genoToRolledUpGenes( ga['genoID'] )
 
@@ -262,8 +209,7 @@ class DiseaseAnnotationFormatter(object):
 	# return list of genotype annot json objects representing
 	#   the genoAnnot (ga)
 
-	doID = self.getDoID(ga)
-	if doID is None: return []	# annotation doesn't map to DO
+	doID = ga['doID']
 
 	# Fields that are commented out are ones MGI doesn't use.
 	# No reason to set them. If they were set to null or [], stripNulls()
