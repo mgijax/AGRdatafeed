@@ -109,10 +109,28 @@ def buildGeneQuery(service, ids):
     query.outerjoin("homologues")
     return query
 
-# Build/returns the query for clas Pseudogene
+# Builds/returns the query for class Pseudogene
 #
 def buildPseudogeneQuery(service, ids):
     return buildSequenceFeatureQuery(service, "Pseudogene", ids)
+
+#
+# Queries MouseMine for Panther ids, which are attached to Homologue objects.
+# Returns a dict mapping MGI ids to Panther ids.
+def cachePantherIds(service, ids):
+  d = {}
+  query = mousemine.new_query("Gene")
+  query.add_view("primaryIdentifier", "homologues.crossReferences.identifier")
+  query.add_constraint("organism.taxonId", "=", "10090", code = "A")
+  query.add_constraint("homologues.dataSets.name", "=", "Panther data set", code = "B")
+  query.add_constraint("homologues.type", "!=", "paralogue", code="C")
+  if len(ids):
+    query.add_constraint("primaryIdentifier", "ONE OF", ids, code = "D")
+
+  for row in query.rows():
+    d[row["primaryIdentifier"]] = row["homologues.crossReferences.identifier"]
+
+  return d
 
 # In MouseMine, synonyms and secondary ids are lumped together as "synonyms". 
 # This function distinguishes a synonym value as being either a secondary id or not.
@@ -143,6 +161,8 @@ def formatXrefs(obj):
 	for x in obj.proteins:
 	    if x.uniprotAccession:
 	        xrefs.add(("UniProtKB", x.uniprotAccession))
+    if hasattr(obj,"pantherId") and obj.pantherId:
+      xrefs.add(("PANTHER", obj.pantherId))
     xrefs = list(xrefs)
     xrefs.sort()
     #return [{"dataProvider":x[0],"id":x[1]} for x in xrefs]
@@ -195,12 +215,12 @@ def getJsonObj(obj):
     "primaryId"		: obj.primaryIdentifier,
     "symbol"		: obj.symbol,
     "name"		: obj.name,
-    "geneSynopsis"	: None,
+    "geneSynopsis"	: obj.description,
     "geneSynopsisUrl"	: formatMyGeneLink(obj),
     "geneLiteratureUrl"	: GENELITURL % obj.primaryIdentifier,
     "soTermId"		: obj.sequenceOntologyTerm.identifier,
     "taxonId"		: GLOBALTAXONID,
-    "synonyms"		: [ s.value for s in obj.synonyms if not isSecondaryId(s.value) ],
+    "synonyms"		: [ s.value for s in obj.synonyms if not isSecondaryId(s.value) and s.value != obj.symbol and s.value != obj.name ],
     "secondaryIds"	: [ formatSecondary(s.value) for s in obj.synonyms if isSecondaryId(s.value) ],
     "crossReferenceIds"	: formatXrefs(obj),
     "genomeLocations"	: formatGenomeLocation(obj)
@@ -233,10 +253,15 @@ def main():
   args = parseCmdLine()
   ids = args.identifiers
   #
+  mgi2panther = cachePantherIds(mousemine, ids)
+  def addPantherId(obj):
+    obj.pantherId = mgi2panther.get(obj.primaryIdentifier, None)
+    return obj
+  #
   query = itertools.chain(buildGeneQuery(mousemine, ids), buildPseudogeneQuery(mousemine, ids))
   jobj = {
     "metaData" : buildMetaObject(mousemine),
-    "data" : [ getJsonObj(x) for x in query ]
+    "data" : [ getJsonObj(addPantherId(x)) for x in query ]
   }
   print json.dumps(jobj, sort_keys=True, indent=2, separators=(',', ': ')),
 
