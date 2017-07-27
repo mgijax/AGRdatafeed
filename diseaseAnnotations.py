@@ -13,13 +13,15 @@
 # Example genotype ID:  MGI:5526095 MGI:2175208 MGI:5588576
 #       python diseaseAnnotations.py MGI:5526095 MGI:2175208 MGI:5588576 > sample.json
 #
-# Author: jim kadin
+# Original author: Jim Kadin
+# Revisions: Joel Richardson
+#
 
 import sys
 import json
 from ConfigParser import ConfigParser
 from intermine.webservice import Service
-from AGRlib import AGRjsonFormatter, buildMetaObject
+from AGRlib import stripNulls, buildMetaObject, getTimeStamp
 
 ##### Load config
 cp = ConfigParser()
@@ -28,269 +30,159 @@ cp.read("config.cfg")
 
 MOUSEMINEURL    = cp.get("DEFAULT","MOUSEMINEURL")
 TAXONID         = cp.get("DEFAULT","TAXONID")
-GLOBALTAXONID   = cp.get("DEFAULT","GLOBALTAXONID")
+MOUSETAXONID   = cp.get("DEFAULT","GLOBALTAXONID")
 DO_GENES        = cp.getboolean("dafFile","DO_GENES")
 DO_GENOS        = cp.getboolean("dafFile","DO_GENOS")
-RFC3339TIME	= "T10:00:00-05:00"	# add to dates to make RFC3339 date/time
 
 ########
-class GenoToGeneFinder (object):
-    # Builds a mapping from genotypes to rolled-up gene(s).
-    def __init__(self, service):
-	query = self.buildQuery(service)
-	self.buildMapping(query)
-    ######
+# Returns an iterator over the disease annotation for sequence features or genotypes, depending
+# on the kind argument. Optionally restrict to a specific set of ids.
+# Args:
+#   service - a connection to MouseMine
+#   kind - either "SequenceFeature" or "Genotype"
+#   ids - either None, or a list of MGI ids. Annotations will be returned only for objects in this list
+# Returns:
+#   An iterator that will yield annotations. Annotations are objects - use dot notation to access parts,
+#   e.g., a.subject.symbol
+#
+def annotations(service, kind, ids = None):
+      query = service.new_query("OntologyAnnotation")
+      #
+      query.add_constraint("subject", kind)
+      query.add_constraint("ontologyTerm", "DOTerm")
+      #
+      query.add_view(
+          "subject.primaryIdentifier",
+          "subject.symbol",
+          "subject.name",
+          "ontologyTerm.identifier",
+          "ontologyTerm.name",
+          "qualifier",
+          "evidence.annotationDate",
+          "evidence.code.code",
+          "evidence.publications.pubMedId",
+          "evidence.publications.mgiJnum",
+          "evidence.publications.mgiId"
+      )
+      query.add_constraint("subject.organism.taxonId", "=", "10090")
+      #
+      if kind == "Gene":
+          query.add_constraint("evidence.baseAnnotations.subject", "Genotype")
+          query.add_view(
+            "evidence.baseAnnotations.subject.symbol",
+            "evidence.baseAnnotations.subject.background.name",
+            "evidence.baseAnnotations.subject.primaryIdentifier",
+            "evidence.baseAnnotations.evidence.annotationDate"
+          )
+          query.outerjoin("evidence.baseAnnotations")
+      #
+      if ids and len(ids):
+          query.add_constraint("subject.primaryIdentifier", "ONE OF", ids)
+      #
+      query.add_sort_order("subject.primaryIdentifier", "ASC")
+      query.add_sort_order("ontologyTerm.identifier", "ASC")
+      #
+      for a in query:
+          applyConversions(a, kind)
+          for e in a.invevidence:
+            a.agrevidence = e
+            yield formatDafJsonRecord(a)
 
-    def genoToRolledUpGenes(self, genoID):
-	# return list of (geneID, symbol) pairs that roll up to the genoID
-	return self.genoToGene.get(genoID, {}).keys()
-    ######
+########
+# Applies various transformations to the 'raw' annotations returned by from the db to prepare it
+# for export to AGR. Example: AGR dates must be in rfc3339 format. See comments for specific 
+# transforms.
+# Args:
+#   a - one annotation
+#   kind - either "SequenceFeature" or "Genotype"
+# Returns:
+#   The annotation, with conversions applied
+#
+geno2genes = {}   # genotype->rolled up genes index
+def applyConversions(a, kind):
+    global geno2genes
+    #
+    # "not" is the only recognized qualifier for 1.0
+    a.qualifier = "not" if a.qualifier == "NOT" else None
+    #
+    # MGI (and MM) store evidence as one evidence code with >= 1 ref.
+    # AGR inverts this: one reference with >= 1 evidence code.
+    ref2codes = {}
+    for e in a.evidence:
+        for p in e.publications:
+            ref2codes.setdefault((p.mgiId,p.pubMedId), set()).add(e.code.code)
+    a.invevidence = []
+    for (k,es) in ref2codes.items():
+        (mgiId, pubMedId) = k
+        p = { "modPublicationId" : mgiId }
+        if pubMedId: p["pubMedId"] = "PMID:" + pubMedId
+        a.invevidence.append({ "publication" : p, "evidenceCodes" : list(es) })
+    #
+    # object relation for genes
+    if kind == "SequenceFeature":
+        a.objectName = a.subject.symbol
+        a.objectRelation = {
+            "objectType" : "gene",
+            "associationType" : "is_implicated_in"
+        }
+        #
+        # annotationDate for gene is min annotation date from associated base (genotype) evidence recs
+        d = None
+        for e in a.evidence:
+            for ba in e.baseAnnotations:
+                geno2genes.setdefault(ba.subject.primaryIdentifier, set()).add(a.subject.primaryIdentifier)
+                for be in ba.evidence:
+                  if d is None or be.annotationDate < d:
+                      d = be.annotationDate
+        a.annotationDate = getTimeStamp(d)
+    else: # kind == "Genotype"
+        a.objectName = a.subject.name
+        a.objectRelation = {
+            "objectType" : "genotype",
+            "associationType" : "is_model_of",
+            "inferredGeneAssociation": list(geno2genes.get(a.subject.primaryIdentifier,[]))
+        }
+        #
+        # annotationDate for genotype is min annotation date from associated evidence recs
+        d = None
+        for e in a.evidence:
+            if d is None or e.annotationDate < d:
+                d = e.annotationDate
+        a.annotationDate = getTimeStamp(d)
+    return a
 
-    def buildMapping(self, query):
+########
+# Returns a JSON object for one annotation formatted according to the AGR disease annotation spec.
+#
+def formatDafJsonRecord (annot):
+    return stripNulls({
+        'taxonId':                      MOUSETAXONID,
+        'objectId':                     annot.subject.primaryIdentifier,
+        'objectName':                   annot.objectName,
+        'objectRelation':               annot.objectRelation,
+        #'experimentalConditions':      [],
+        'qualifier':                    annot.qualifier,
+        'DOid':                         annot.ontologyTerm.identifier,
+        #'with':                        [],
+        #'modifier':                    None,
+        'evidence':                     annot.agrevidence,
+        #'geneticSex':                  '',
+        'dateAssigned':                 annot.annotationDate,
+        'dataProvider':                 'MGI',
+    })
 
-	self.genoToGene = {}	# geneoToGene[genoID] == {(geneID:,symbol):1}
-				# There can be multiple rolled up genes:
-				#  1 example: gene + transgene if the TG
-				#   expresses the gene.
-	for row in query.rows():
-	    genoID = row["ontologyAnnotations.evidence.baseAnnotations.subject.primaryIdentifier"]
-	    geneInfo = (row["primaryIdentifier"], row["symbol"])
-	    self.genoToGene.setdefault(genoID,{})[geneInfo] = 1
-
-    ######
-    def buildQuery(self,service):
-	query = service.new_query("SequenceFeature")
-
-	# Type constraints should come early 
-	query.add_constraint("ontologyAnnotations.ontologyTerm", "DiseaseTerm")
-	query.add_constraint("ontologyAnnotations.evidence.baseAnnotations.subject", "Genotype")
-
-	# The view specifies the output columns
-	query.add_view(
-	"primaryIdentifier", "symbol",
-	"ontologyAnnotations.ontologyTerm.identifier",
-	"ontologyAnnotations.ontologyTerm.name", "ontologyAnnotations.qualifier",
-	"ontologyAnnotations.evidence.baseAnnotations.subject.symbol",
-	"ontologyAnnotations.evidence.baseAnnotations.subject.background.name",
-	"ontologyAnnotations.evidence.baseAnnotations.subject.primaryIdentifier"
-	)
-
-	query.add_constraint("organism.taxonId", "=", "10090", code = "C")
-	return query
-    ######
-####### end class GenoToGeneFinder
-
-class GenoAnnotationQuery (object): 
-    # Provide an iterator, annotations(), for all genotype disease annotations
-    #   pulled from MouseMine.
-    # Each returned annotation record is a dictionary with fields defined
-    #    below.
-
-    def __init__(self, service, ids):
-	# ids is list of Genotype MGI ids to restrict the query to.
-	#   if empty list, get them all
-	self.service = service
-	self.ids = ids
-
-    def buildGenoAnnotQuery(self):
-
-	# Get a new query on the class (table) you will be querying:
-	query = self.service.new_query("Genotype")
-
-	#Type constraints come before all mentions of the paths they constrain
-	query.add_constraint("ontologyAnnotations.ontologyTerm", "DOTerm")
-	if len(self.ids):
-	    query.add_constraint("primaryIdentifier", "ONE OF", self.ids)
-
-	# The view specifies the output columns
-	query.add_view(
-	    "primaryIdentifier", "name",
-	    "ontologyAnnotations.ontologyTerm.identifier",
-	    "ontologyAnnotations.ontologyTerm.name",
-	    "ontologyAnnotations.qualifier",
-	    "ontologyAnnotations.evidence.code.code",
-	    "ontologyAnnotations.evidence.publications.pubMedId",
-	    "ontologyAnnotations.evidence.publications.mgiJnum",
-	    "ontologyAnnotations.evidence.publications.mgiId",
-	    "ontologyAnnotations.evidence.annotationDate"
-	)
-	return query
-
-    def annotations(self):
-	genoAnnotQuery = self.buildGenoAnnotQuery()
-
-	for genoAnnotRow in genoAnnotQuery.rows():
-	    genoAnnot = genoAnnotRow.to_d()
-
-	    # 'PMID:' prefix
-	    pubmedID = genoAnnot['Genotype.ontologyAnnotations.evidence.publications.pubMedId']
-	    if pubmedID != '' and pubmedID != None:
-		pubmedID = 'PMID:' + str(pubmedID)
-
-	    result = {
-	    'genoID'  : genoAnnot['Genotype.primaryIdentifier'],
-	    'genoName': genoAnnot['Genotype.name'],
-	    'doID'  : genoAnnot['Genotype.ontologyAnnotations.ontologyTerm.identifier'],
-
-	    'doTerm':
-	      genoAnnot['Genotype.ontologyAnnotations.ontologyTerm.name'],
-
-	    'qualifier':
-	      genoAnnot['Genotype.ontologyAnnotations.qualifier'],
-
-	    'evidenceCode':
-	      genoAnnot['Genotype.ontologyAnnotations.evidence.code.code'],
-
-	    'pubmedID': pubmedID,
-
-	    'mgiJnum':
-	      genoAnnot['Genotype.ontologyAnnotations.evidence.publications.mgiJnum'],
-	    'mgiRefID':
-	      genoAnnot['Genotype.ontologyAnnotations.evidence.publications.mgiId'],
-	    'annotDate':
-	      genoAnnot['Genotype.ontologyAnnotations.evidence.annotationDate'],
-	    }
-	    yield result
-
-####### end class GenoAnnotationQuery
-
-class DiseaseAnnotationFormatter(object):
-    # Knows the (json) structure of disease annotation.
-    # Creates/returns the json object for a disease annotation.
-
-    def __init__(self, config, service):
-	self.geneFinder = GenoToGeneFinder(service)
-	self.AGRjf      = AGRjsonFormatter(config)
-
-    def getGeneAnnotJsonObjs(self, ga):
-	# return list of gene annot json objects representing
-	#   the genoAnnot (ga)
-
-	doID = ga['doID']
-
-	rolledGenes = self.geneFinder.genoToRolledUpGenes( ga['genoID'] )
-
-	geneJsons = []
-	for geneID, symbol in rolledGenes:
-	    # Fields that are commented out are ones MGI doesn't use.
-	    # No reason to set them. If they were are null or [], stripNulls()
-	    #   would remove them anyway.
-	    geneJsons.append( self.AGRjf.stripNulls( \
-	    {
-	    'taxonId'			: GLOBALTAXONID,
-	    'objectId'			: self.AGRjf.addIDprefix(geneID),
-	    'objectName'		: symbol,
-	    'objectRelation'		: self.getGeneObjectRelationObj(ga),
-	    #'experimentalConditions'	: [],
-	    'qualifier'			: self.getQualifier(ga),
-	    'DOid'			: doID,
-	    #'with'			: [],
-	    #'modifier'			: None,
-	    'evidence'			: self.getEvidenceObj(ga),
-	    #'geneticSex'		: '',
-	    'dateAssigned'		: ga['annotDate'] + RFC3339TIME,
-	    'dataProvider'		: 'MGI',
-	    } )
-	    )
-	return geneJsons
-    ######
-
-    def getGeneObjectRelationObj(self, ga):
-	# see https://github.com/alliance-genome/agr_schemas/blob/development/disease/diseaseObjectRelation.json
-	
-	return \
-	  { "associationType"	: "causes_condition",
-	    "objectType"	: "gene",
-	    "inferredFromID"	: ga["genoID"],		# MGI defined json attr
-	    "inferredFromName"	: ga["genoName"]	# MGI defined json attr
-	  }
-
-    def getGenoAnnotJsonObjs(self, ga):
-	# return list of genotype annot json objects representing
-	#   the genoAnnot (ga)
-
-	doID = ga['doID']
-
-	# Fields that are commented out are ones MGI doesn't use.
-	# No reason to set them. If they were set to null or [], stripNulls()
-	#   would remove them anyway.
-	return [ \
-	    self.AGRjf.stripNulls( \
-	    {
-	    'taxonId'		: GLOBALTAXONID,
-	    'objectId'		: ga['genoID'],
-	    'objectName'	: ga['genoName'],
-	    'objectRelation'	: self.getGenoObjectRelationObj(ga),
-	    #'experimentalConditions': [],
-	    'qualifier'		: self.getQualifier(ga),
-	    'DOid'		: doID,
-	    #'with'		: [],
-	    #'modifier'		: None,
-	    'evidence'		: self.getEvidenceObj(ga),
-	    #'geneticSex'	: '',
-	    'dateAssigned'	: ga['annotDate'] + RFC3339TIME,
-	    'dataProvider'	: 'MGI',
-	    } )
-	    ]
-	######
-
-    def getGenoObjectRelationObj(self, ga):
-	# see https://github.com/alliance-genome/agr_schemas/blob/development/disease/diseaseObjectRelation.json
-	
-	rolledGenes = [ self.AGRjf.addIDprefix(g[0]) for g in
-		      self.geneFinder.genoToRolledUpGenes(ga['genoID']) ]
-
-	return \
-	  { "associationType" : "is_model_of",
-	    "objectType"      : "genotype",
-	    "inferredGeneAssociation" : rolledGenes
-	  }
-
-    def getQualifier(self,ga):
-	if ga['qualifier'] is None: return None
-	else: return ga['qualifier'].lower()
-
-    def getEvidenceObj(self, ga):
-	# see https://github.com/alliance-genome/agr_schemas/blob/development/disease/evidence.json
-	# for us, because of the way we pull annotations from MM,
-	#    we only have one pub for each annotation record.
-
-	pmID = ga['pubmedID']
-	if pmID == '': pmID = None
-
-	return \
-	[ { "evidenceCode" : ga['evidenceCode'],
-	    "publications" : [ { "modPublicationId" : ga['mgiRefID'],
-	                         "pubMedId"         : pmID
-			       }
-			     ]
-	  }
-	]
-    
-######## end Class DiseaseAnnotationFormatter
-
+#####
 def main(ids):
     service = Service(MOUSEMINEURL)
-    query   = GenoAnnotationQuery(service, ids)
-    df      = DiseaseAnnotationFormatter(cp, service)
-
-    annotJsonObjs = []
-    for annot in query.annotations():
-	if DO_GENOS: annotJsonObjs += df.getGenoAnnotJsonObjs(annot)
-				# Can be [] if OMIMID doesn't map to DOID.
-				# Once MM starts storing DO annotations, 
-				#  this check won't be necessary as the query
-				#  will only return annots to DO.
-	if DO_GENES: annotJsonObjs += df.getGeneAnnotJsonObjs(annot)
-				# Can be [] if OMIMID doesn't map to DOID.
-				# OR geno annot doesn't roll up to genes
-
+    # IMPORTANT! Gene annotations must be retrieved *before* Genotype annots. 
+    geneAnnots = list(annotations(service, "SequenceFeature", ids))
+    genoAnnots = list(annotations(service, "Genotype", ids))
+    annots = (geneAnnots if DO_GENES else []) + genoAnnots
     jobj = {
       "metaData" : buildMetaObject(service),
-      "data"     : annotJsonObjs
+      "data"     : annots
       }
     print json.dumps(jobj, sort_keys=True, indent=2, separators=(',', ': ')),
 
 #####
-
-main(sys.argv[1:]) 	# optional geno IDs on the cmd line to restrict query
+main(sys.argv[1:]) 	# optional geno and/or gene IDs on the cmd line to restrict query
