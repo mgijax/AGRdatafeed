@@ -27,7 +27,7 @@ import argparse
 from ConfigParser import ConfigParser
 
 # nonstandard dependencies
-from AGRlib import AGRjsonFormatter, buildMetaObject, IDPREFIX
+from AGRlib import stripNulls, buildMetaObject
 from intermine.webservice import Service
 
 #-----------------------------------
@@ -55,10 +55,6 @@ for n in cp.options("dataProviders"):
 # MouseMine connection
 
 mousemine = Service(MOUSEMINEURL)
-
-#-----------------------------------
-# AGR formatter that knows how to cleanse an AGR json obj
-AGRcleaner = AGRjsonFormatter(cp)
 
 #-----------------------------------
 # Constructs and returns the core of the query, suitable for any SequenceFeature subclass.
@@ -211,7 +207,7 @@ def formatGenomeLocation(obj):
 # conforming to the spec.
 #
 def getJsonObj(obj):
-  return AGRcleaner.stripNulls({
+  return stripNulls({
     "primaryId"		: obj.primaryIdentifier,
     "symbol"		: obj.symbol,
     "name"		: obj.name,

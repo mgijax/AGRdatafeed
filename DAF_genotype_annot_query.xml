@@ -1,3 +1,0 @@
-<query name="" model="genomic" view="Genotype.primaryIdentifier Genotype.name Genotype.ontologyAnnotations.ontologyTerm.omimId Genotype.ontologyAnnotations.ontologyTerm.name Genotype.ontologyAnnotations.qualifier Genotype.ontologyAnnotations.evidence.code.code Genotype.ontologyAnnotations.evidence.publications.mgiId Genotype.ontologyAnnotations.evidence.publications.pubMedId Genotype.ontologyAnnotations.evidence.publications.mgiJnum" longDescription="" sortOrder="Genotype.primaryIdentifier asc">
-  <constraint path="Genotype.ontologyAnnotations.ontologyTerm" type="OMIMTerm"/>
-  </query>
