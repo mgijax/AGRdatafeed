@@ -41,4 +41,5 @@ Ensembl Gene Model: ENSEMBL
 
 [dafFile]
 DO_GENES: true
+DO_ALLELES: false
 DO_GENOS: false

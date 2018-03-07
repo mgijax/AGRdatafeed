@@ -11,7 +11,8 @@
 # For debugging, accepts optional MGI IDs for genotypes on command line
 #   to restrict output to DAF records for those genotypes.
 # Example genotype ID:  MGI:5526095 MGI:2175208 MGI:5588576
-#       python diseaseAnnotations.py MGI:5526095 MGI:2175208 MGI:5588576 > sample.json
+# Example gene IDs: MGI:97490 MGI:99607
+#       python diseaseAnnotations.py MGI:5526095 MGI:2175208 MGI:5588576 MGI:99607 MGI:97490 > sample.json
 #
 # Original author: Jim Kadin
 # Revisions: Joel Richardson
@@ -30,8 +31,9 @@ cp.read("config.cfg")
 
 MOUSEMINEURL    = cp.get("DEFAULT","MOUSEMINEURL")
 TAXONID         = cp.get("DEFAULT","TAXONID")
-MOUSETAXONID   = cp.get("DEFAULT","GLOBALTAXONID")
+MOUSETAXONID    = cp.get("DEFAULT","GLOBALTAXONID")
 DO_GENES        = cp.getboolean("dafFile","DO_GENES")
+DO_ALLELES      = cp.getboolean("dafFile","DO_ALLELES")
 DO_GENOS        = cp.getboolean("dafFile","DO_GENOS")
 
 ########
@@ -118,11 +120,11 @@ def applyConversions(a, kind):
         if pubMedId: p["pubMedId"] = "PMID:" + pubMedId
         a.invevidence.append({ "publication" : p, "evidenceCodes" : list(es) })
     #
-    # object relation for genes
-    if kind == "SequenceFeature":
+    # object relation for genes and alleles
+    if kind == "SequenceFeature" or kind == "Allele":
         a.objectName = a.subject.symbol
         a.objectRelation = {
-            "objectType" : "gene",
+            "objectType" : "gene" if kind == "SequenceFeature" else "allele",
             "associationType" : "is_implicated_in"
         }
         #
@@ -176,8 +178,10 @@ def main(ids):
     service = Service(MOUSEMINEURL)
     # IMPORTANT! Gene annotations must be retrieved *before* Genotype annots. 
     geneAnnots = list(annotations(service, "SequenceFeature", ids))
+    alleleAnnots = []
+    if DO_ALLELES: alleleAnnots = list(annotations(service, "Allele", ids))
     genoAnnots = list(annotations(service, "Genotype", ids))
-    annots = (geneAnnots if DO_GENES else []) + genoAnnots
+    annots = (geneAnnots if DO_GENES else []) + alleleAnnots + genoAnnots
     jobj = {
       "metaData" : buildMetaObject(service),
       "data"     : annots
