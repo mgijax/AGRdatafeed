@@ -13,6 +13,7 @@
 
 # standard libs
 import sys
+import re
 import json
 import itertools
 import time
@@ -71,15 +72,27 @@ def buildAlleleQuery(service,ids):
     #
     return query
 
+#
+sup_re = re.compile(r'([<>])')
+def insertSups (s) :
+    def replace (s) :
+        if s == "<":
+            return "<sup>"
+        elif s == ">":
+            return "</sup>"
+        else:
+            return s
+    return ''.join(map(replace, sup_re.split(s)))
+
 # Here is the magic by which an object returned by the query is converted to an object
 # conforming to the spec.
 #
 def getJsonObj(obj):
-  syns = list(set(s.value for s in obj.synonyms ))
+  syns = list(set(insertSups(s.value) for s in obj.synonyms ))
   syns.sort()
   return stripNulls({
     "primaryId"		: obj.primaryIdentifier,
-    "symbol"		: obj.symbol,
+    "symbol"		: insertSups(obj.symbol),
     "taxonId"           : "NCBITaxon:10090",
     "gene"	        : obj.feature.primaryIdentifier,
     "synonyms"          : syns,
