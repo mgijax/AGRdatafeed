@@ -60,6 +60,7 @@ def buildAlleleQuery(service,ids):
     query.add_view("primaryIdentifier", "symbol", "name", "feature.primaryIdentifier", "synonyms.value")
     query.add_constraint("organism.taxonId", "=", "10090", code = "A")
     query.add_constraint("alleleType", "NONE OF", ["QTL", "Transgenic"], code = "B")
+    query.add_constraint("alleleType", "IS NULL", code = "E")
     query.add_constraint("isWildType", "=", "false", code = "C")
     query.add_constraint("ontologyAnnotations.ontologyTerm.id", "IS NOT NULL", code = "D")
     #
@@ -67,8 +68,11 @@ def buildAlleleQuery(service,ids):
     #
     query.add_sort_order("symbol", "ASC")
     #
+    lexp = "A and (B or E) and C and D"
     if len(ids):
-	query.add_constraint("primaryIdentifier", "ONE OF", ids, code = "C")
+	query.add_constraint("primaryIdentifier", "ONE OF", ids, code = "F")
+        lexp += " and F"
+    query.set_logic(lexp)
     #
     return query
 
