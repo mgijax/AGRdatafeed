@@ -12,7 +12,8 @@
 #   to restrict output to DAF records for those genotypes.
 # Example genotype ID:  MGI:5526095 MGI:2175208 MGI:5588576
 # Example gene IDs: MGI:97490 MGI:99607
-#       python diseaseAnnotations.py MGI:5526095 MGI:2175208 MGI:5588576 MGI:99607 MGI:97490 > sample.json
+# Example allele IDs: MGI:3603004 MGI:2680557
+#       python diseaseAnnotations.py MGI:5526095 MGI:2175208 MGI:5588576 MGI:99607 MGI:97490 MGI:97490 MGI:99607 > sample.json
 #
 # Original author: Jim Kadin
 # Revisions: Joel Richardson
@@ -68,7 +69,7 @@ def annotations(service, kind, ids = None):
       )
       query.add_constraint("subject.organism.taxonId", "=", "10090")
       #
-      if kind == "Gene":
+      if kind == "SequenceFeature":
           query.add_constraint("evidence.baseAnnotations.subject", "Genotype")
           query.add_view(
             "evidence.baseAnnotations.subject.symbol",
@@ -77,6 +78,19 @@ def annotations(service, kind, ids = None):
             "evidence.baseAnnotations.evidence.annotationDate"
           )
           query.outerjoin("evidence.baseAnnotations")
+      #
+      if kind == "Allele":
+          # FIXME FIXME FIXME
+          # Rolled up allele-disease annotations have never been implemented in MGI. The rules implemented for mousmine are
+          # ancient and incomplete. The following is a TEMPORARY measure to filter the annotations to a more acceptible set.
+          # We will only include a rolled up allele-disease annotation if the allele's gene has a rolled-up annotation to 
+          # the disease. (Sue Bello suggested this rule.) 
+          # We implement this by adding a loop constraint.
+          # The correct solution is to compute the rolled up annotations in MGI (as with gene-disease annotations) and simply
+          # load them into MouseMine. There is a TR for this. When that TR is complete, the following can go away...
+          # 
+          query.add_constraint("subject.feature.ontologyAnnotations.ontologyTerm", "DOTerm")
+          query.add_constraint("ontologyTerm", "IS", "OntologyAnnotation.subject.feature.ontologyAnnotations.ontologyTerm")
       #
       if ids and len(ids):
           query.add_constraint("subject.primaryIdentifier", "ONE OF", ids)
@@ -112,6 +126,9 @@ def applyConversions(a, kind):
     ref2codes = {}
     for e in a.evidence:
         for p in e.publications:
+            # FIXME: temporary tweak for MouseMine annotations. Remove once allele-annotations are being loaded from MGI
+            if e.code.code == "DOA": e.code.code = "TAS"
+            ##
             ref2codes.setdefault((p.mgiId,p.pubMedId), set()).add(e.code.code)
     a.invevidence = []
     for (k,es) in ref2codes.items():
