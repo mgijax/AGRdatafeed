@@ -6,7 +6,7 @@
 # The format is described here:
 #	https://github.com/alliance-genome/agr_schemas
 #
-# Usage:
+# Example allele IDs: MGI:3603004 MGI:2680557
 #
 # Author: Joel Richardson
 #
@@ -88,6 +88,10 @@ def insertSups (s) :
             return s
     return ''.join(map(replace, sup_re.split(s)))
 
+#
+def formatXrefs(obj):
+    return [{"id":obj.primaryIdentifier, "pages":["allele"]}]
+
 # Here is the magic by which an object returned by the query is converted to an object
 # conforming to the spec.
 #
@@ -101,6 +105,7 @@ def getJsonObj(obj):
     "gene"	        : obj.feature.primaryIdentifier,
     "synonyms"          : syns,
     "secondaryIds"      : [],
+    "crossReferences"   : formatXrefs(obj)
   })
 
 #
