@@ -140,6 +140,22 @@ def isSecondaryId(identifier):
 def formatSecondary(identifier):
   return (MGD_OLD_PREFIX if identifier.startswith("MGD-") else "") + identifier
 
+# In the MGI fewi, mouse genes link to a MyGenes wiki page which is a human readable description.
+# The MyGenes page is for the HUMAN ortholog of the mouse gene.
+# In the database, human genes have a cross reference to MyGenes, where the "id" is the part needed
+# to fill out the complete URL (the base part if constant). 
+# The link is only displayed if the mouse/human gene have a 1:1 orthology relationship.
+# Here we use the same logic to construct a link (or not) for the given mouse gene (obj).
+#
+def formatMyGeneLink(obj):
+    if not hasattr(obj, "homologues") or len(obj.homologues) != 1:
+        return None
+    symbol = obj.homologues[0].homologue.crossReferences[0].identifier
+    # FIXME: Currently, the agr schema for global id's doesn't allow ":" in the suffix part.
+    # A few of these wiki links do, so we'll filter them out for now.
+    # TODO: Ask DQMs to change the globalId pattern. Then remove this filter.
+    return None if ":" in symbol else {"id": "WIKIP:"+symbol}
+
 # Selects the xrefs to be exported for the object and formats them according to the spec.
 #	- restricts which xrefs are exported
 #	- translates provider name
@@ -161,20 +177,15 @@ def formatXrefs(obj):
       xrefs.add(("PANTHER", obj.pantherId))
     xrefs = list(xrefs)
     xrefs.sort()
-    #return [{"dataProvider":x[0],"id":x[1]} for x in xrefs]
-    return [x[0]+":"+x[1] for x in xrefs]
-
-# In the MGI fewi, mouse genes link to a MyGenes wiki page which is a human readable description.
-# The MyGenes page is for the HUMAN ortholog of the mouse gene.
-# In the database, human genes have a cross reference to MyGenes, where the "id" is the part needed
-# to fill out the complete URL (the base part if constant). 
-# The link is only displayed if the mouse/human gene have a 1:1 orthology relationship.
-# Here we use the same logic to construct a link (or not) for the given mouse gene (obj).
-#
-def formatMyGeneLink(obj):
-    if not hasattr(obj, "homologues") or len(obj.homologues) != 1:
-        return None
-    return MYGENEURL + obj.homologues[0].homologue.crossReferences[0].identifier
+    # new xref format for 1.0.0.0. Includes 2 parts: the id, and a list of page-tags (see resourceDescriptors.yaml)
+    xrs = [{"id": x[0]+":"+x[1]} for x in xrefs]
+    # add xrefs to MGI pages for this gene
+    xrs.append({"id": obj.primaryIdentifier, "pages":["gene","gene/references","gene/expression"] })
+    # add xref to MyGene page (if applicable)
+    mgl = formatMyGeneLink(obj)
+    if mgl: xrs.append(mgl)
+    #
+    return xrs
 
 
 # Convert strand value as stored in MouseMine (+1/-1/0) to the AGR standard (+/-/.)
@@ -212,13 +223,11 @@ def getJsonObj(obj):
     "symbol"		: obj.symbol,
     "name"		: obj.name,
     "geneSynopsis"	: obj.description,
-    "geneSynopsisUrl"	: formatMyGeneLink(obj),
-    "geneLiteratureUrl"	: GENELITURL % obj.primaryIdentifier,
     "soTermId"		: obj.sequenceOntologyTerm.identifier,
     "taxonId"		: GLOBALTAXONID,
     "synonyms"		: [ s.value for s in obj.synonyms if not isSecondaryId(s.value) and s.value != obj.symbol and s.value != obj.name ],
     "secondaryIds"	: [ formatSecondary(s.value) for s in obj.synonyms if isSecondaryId(s.value) ],
-    "crossReferenceIds"	: formatXrefs(obj),
+    "crossReferences"	: formatXrefs(obj),
     "genomeLocations"	: formatGenomeLocation(obj)
   })
 
