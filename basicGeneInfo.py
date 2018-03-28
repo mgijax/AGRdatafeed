@@ -57,6 +57,13 @@ for n in cp.options("dataProviders"):
 mousemine = Service(MOUSEMINEURL)
 
 #-----------------------------------
+def buildExpressedGeneQuery(service):
+    query = service.new_query('Gene')
+    query.add_view("primaryIdentifier")
+    query.add_constraint("expression.assayId", "IS NOT NULL", code="A")
+    return query
+
+#-----------------------------------
 # Constructs and returns the core of the query, suitable for any SequenceFeature subclass.
 #
 def buildSequenceFeatureQuery(service, subclassName, ids):
@@ -180,7 +187,10 @@ def formatXrefs(obj):
     # new xref format for 1.0.0.0. Includes 2 parts: the id, and a list of page-tags (see resourceDescriptors.yaml)
     xrs = [{"id": x[0]+":"+x[1]} for x in xrefs]
     # add xrefs to MGI pages for this gene
-    xrs.append({"id": obj.primaryIdentifier, "pages":["gene","gene/references","gene/expression"] })
+    pgs = ["gene","gene/references"]
+    if obj.primaryIdentifier in expressed:
+        pgs.append("gene/expression")
+    xrs.append({"id": obj.primaryIdentifier, "pages":pgs })
     # add xref to MyGene page (if applicable)
     mgl = formatMyGeneLink(obj)
     if mgl: xrs.append(mgl)
@@ -257,6 +267,11 @@ def parseCmdLine():
 def main():
   args = parseCmdLine()
   ids = args.identifiers
+  #
+  global expressed
+  expressed = set()
+  for x in buildExpressedGeneQuery(mousemine).rows():
+      expressed.add(x["primaryIdentifier"])
   #
   mgi2panther = cachePantherIds(mousemine, ids)
   def addPantherId(obj):
