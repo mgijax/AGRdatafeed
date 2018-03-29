@@ -21,6 +21,7 @@
 
 import sys
 import json
+import itertools
 from ConfigParser import ConfigParser
 from intermine.webservice import Service
 from AGRlib import stripNulls, buildMetaObject, getTimeStamp
@@ -60,35 +61,26 @@ def annotations(service, kind, ids = None):
           "subject.name",
           "ontologyTerm.identifier",
           "ontologyTerm.name",
-          "qualifier",
           "evidence.annotationDate",
           "evidence.code.code",
           "evidence.publications.pubMedId",
           "evidence.publications.mgiJnum",
           "evidence.publications.mgiId"
       )
+      if kind == "Allele":
+          query.add_view("subject.feature.primaryIdentifier")
+
       query.add_constraint("subject.organism.taxonId", "=", "10090")
       #
-      if kind == "SequenceFeature":
+      if kind == "SequenceFeature": # FIXME: Alleles should also have baseAnnotations. 
           query.add_constraint("evidence.baseAnnotations.subject", "Genotype")
           query.add_view(
-            "evidence.baseAnnotations.subject.symbol",
-            "evidence.baseAnnotations.subject.background.name",
             "evidence.baseAnnotations.subject.primaryIdentifier",
             "evidence.baseAnnotations.evidence.annotationDate"
           )
           query.outerjoin("evidence.baseAnnotations")
       #
-      if kind == "Allele":
-          # FIXME FIXME FIXME
-          # Rolled up allele-disease annotations have never been implemented in MGI. The rules implemented for mousmine are
-          # ancient and incomplete. The following is a TEMPORARY measure to filter the annotations to a more acceptible set.
-          # We will only include a rolled up allele-disease annotation if the allele's gene has a rolled-up annotation to 
-          # the disease. (Sue Bello suggested this rule.) 
-          # We implement this by adding a loop constraint.
-          # The correct solution is to compute the rolled up annotations in MGI (as with gene-disease annotations) and simply
-          # load them into MouseMine. There is a TR for this. When that TR is complete, the following can go away...
-          # 
+      if kind == "xAllele": # disabled
           query.add_constraint("subject.feature.ontologyAnnotations.ontologyTerm", "DOTerm")
           query.add_constraint("ontologyTerm", "IS", "OntologyAnnotation.subject.feature.ontologyAnnotations.ontologyTerm")
       #
@@ -99,13 +91,14 @@ def annotations(service, kind, ids = None):
       query.add_sort_order("ontologyTerm.identifier", "ASC")
       #
       for a in query:
-          applyConversions(a, kind)
+          if not applyConversions(a, kind):
+              continue
           for e in a.invevidence:
             a.agrevidence = e
             yield formatDafJsonRecord(a)
 
 ########
-# Applies various transformations to the 'raw' annotations returned by from the db to prepare it
+# Applies various transformations to a 'raw' annotation returned from the db to prepare it
 # for export to AGR. Example: AGR dates must be in rfc3339 format. See comments for specific 
 # transforms.
 # Args:
@@ -115,6 +108,7 @@ def annotations(service, kind, ids = None):
 #   The annotation, with conversions applied
 #
 geno2genes = {}   # genotype->rolled up genes index
+gene2disease = {} # gene id -> set of disease ids
 def applyConversions(a, kind):
     global geno2genes
     #
@@ -138,37 +132,62 @@ def applyConversions(a, kind):
         a.invevidence.append({ "publication" : p, "evidenceCodes" : list(es) })
     #
     # object relation for genes and alleles
-    if kind == "SequenceFeature" or kind == "Allele":
+    if kind == "SequenceFeature":
+        # Record for later use
+        gene2disease.setdefault(a.subject.primaryIdentifier,set()).add(a.ontologyTerm.identifier)
+        #
         a.objectName = a.subject.symbol
         a.objectRelation = {
-            "objectType" : "gene" if kind == "SequenceFeature" else "allele",
+            "objectType" : "gene",
             "associationType" : "is_implicated_in"
         }
-        #
-        # annotationDate for gene is min annotation date from associated base (genotype) evidence recs
-        d = None
+        setAnnotationDate(a, kind)
         for e in a.evidence:
             for ba in e.baseAnnotations:
+                # record for later use: which genotypes roll up to this gene
                 geno2genes.setdefault(ba.subject.primaryIdentifier, set()).add(a.subject.primaryIdentifier)
-                for be in ba.evidence:
-                  if d is None or be.annotationDate < d:
-                      d = be.annotationDate
-        a.annotationDate = getTimeStamp(d)
+    elif kind == "Allele":
+        # FIXME FIXME FIXME
+        # Rolled up allele-disease annotations have never been implemented in MGI. The rules implemented for mousmine are
+        # ancient and incomplete. The following is a TEMPORARY measure to filter the annotations to a more acceptible set.
+        # We will only include a rolled up allele-disease annotation if the allele's gene has a rolled-up annotation to 
+        # the same disease. (Sue Bello suggested this rule.) 
+        # The ultimate solution is to compute the rolled up annotations in MGI (as with gene-disease annotations) and simply
+        # load them into MouseMine. There is a TR for this. When that TR is complete, the following can go away...
+        # 
+        if not a.ontologyTerm.identifier in gene2disease.get(a.subject.feature.primaryIdentifier, []):
+            return None
+        a.objectName = a.subject.symbol
+        a.objectRelation = {
+            "objectType" : "allele",
+            "associationType" : "is_implicated_in"
+        }
+        setAnnotationDate(a, kind)
     else: # kind == "Genotype"
         a.objectName = a.subject.name
         a.objectRelation = {
             "objectType" : "genotype",
             "associationType" : "is_model_of",
+            # The following line is the reason genes-disease annotation must be processed first...
             "inferredGeneAssociation": list(geno2genes.get(a.subject.primaryIdentifier,[]))
         }
-        #
-        # annotationDate for genotype is min annotation date from associated evidence recs
-        d = None
-        for e in a.evidence:
+        setAnnotationDate(a, kind)
+    return a
+
+# Sets the annotation date for a gene or allele -to-disease annotation.
+# This is the min annotation date from associated base (genotype) evidence recs
+def setAnnotationDate(a, kind):
+    d = None
+    for e in a.evidence:
+        if kind == "Genotype" or kind == "Allele":  # FIXME: allele should have base annots
             if d is None or e.annotationDate < d:
                 d = e.annotationDate
-        a.annotationDate = getTimeStamp(d)
-    return a
+        else:
+            for ba in e.baseAnnotations:
+                for be in ba.evidence:
+                  if d is None or be.annotationDate < d:
+                      d = be.annotationDate
+    a.annotationDate = getTimeStamp(d)
 
 ########
 # Returns a JSON object for one annotation formatted according to the AGR disease annotation spec.
@@ -193,17 +212,20 @@ def formatDafJsonRecord (annot):
 #####
 def main(ids):
     service = Service(MOUSEMINEURL)
+
+    mdo = buildMetaObject(service)
+    print '{"metadata": %s,' % json.dumps(mdo) 
+    print ' "data"    : ['
+    #
     # IMPORTANT! Gene annotations must be retrieved *before* Genotype annots. 
-    geneAnnots = list(annotations(service, "SequenceFeature", ids))
-    alleleAnnots = []
-    if DO_ALLELES: alleleAnnots = list(annotations(service, "Allele", ids))
-    genoAnnots = list(annotations(service, "Genotype", ids))
-    annots = (geneAnnots if DO_GENES else []) + alleleAnnots + genoAnnots
-    jobj = {
-      "metaData" : buildMetaObject(service),
-      "data"     : annots
-      }
-    print json.dumps(jobj, sort_keys=True, indent=2, separators=(',', ': ')),
+    geneAnnots = annotations(service, "SequenceFeature", ids)
+    alleleAnnots = annotations(service, "Allele", ids)
+    genotypeAnnots = annotations(service, "Genotype", ids)
+    #
+    for i,ga in enumerate(itertools.chain(geneAnnots, alleleAnnots, genotypeAnnots)):
+        print "," if i>0 else "", json.dumps(ga)
+
+    print "]}"
 
 #####
 main(sys.argv[1:]) 	# optional geno and/or gene IDs on the cmd line to restrict query
