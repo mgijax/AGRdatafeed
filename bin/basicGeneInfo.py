@@ -24,17 +24,14 @@ import itertools
 import time
 import types
 import argparse
-from ConfigParser import ConfigParser
 
 # nonstandard dependencies
-from AGRlib import stripNulls, buildMetaObject
+from AGRlib import getConfig, stripNulls, buildMetaObject
 from intermine.webservice import Service
 
 #-----------------------------------
-# Load config
-cp = ConfigParser()
-cp.optionxform = str # make keys case sensitive
-cp.read("config.cfg")
+# load config settings
+cp = getConfig()
 
 MOUSEMINEURL  = cp.get("DEFAULT","MOUSEMINEURL")
 taxon         = cp.get("DEFAULT","TAXONID")

@@ -5,7 +5,15 @@ import time
 import json
 import re
 import datetime
-from ConfigParser import ConfigParser
+
+#
+def getConfig():
+    from ConfigParser import ConfigParser
+    cp = ConfigParser()
+    cp.optionxform = str # make keys case sensitive
+    cp.read("../config.cfg")
+    return cp
+
 
 # See: http://henry.precheur.org/projects/rfc3339 
 from rfc3339 import rfc3339

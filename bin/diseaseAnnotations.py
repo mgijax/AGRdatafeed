@@ -22,14 +22,11 @@
 import sys
 import json
 import itertools
-from ConfigParser import ConfigParser
 from intermine.webservice import Service
 from AGRlib import stripNulls, buildMetaObject, getTimeStamp
 
-##### Load config
-cp = ConfigParser()
-cp.optionxform = str
-cp.read("config.cfg")
+# load config settings
+cp = getConfig()
 
 MOUSEMINEURL    = cp.get("DEFAULT","MOUSEMINEURL")
 TAXONID         = cp.get("DEFAULT","TAXONID")
