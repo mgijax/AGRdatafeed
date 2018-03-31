@@ -5,13 +5,17 @@ import time
 import json
 import re
 import datetime
+import os
+
 
 #
 def getConfig():
     from ConfigParser import ConfigParser
+    DIR=os.path.dirname(__file__)
+    cfname= os.path.abspath(os.path.join(DIR,"..","config.cfg"))
     cp = ConfigParser()
     cp.optionxform = str # make keys case sensitive
-    cp.read("../config.cfg")
+    cp.read(cfname)
     return cp
 
 
