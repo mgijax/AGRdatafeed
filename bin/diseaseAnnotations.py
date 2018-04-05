@@ -23,7 +23,7 @@ import sys
 import json
 import itertools
 from intermine.webservice import Service
-from AGRlib import stripNulls, buildMetaObject, getTimeStamp
+from AGRlib import getConfig, stripNulls, buildMetaObject, getTimeStamp
 
 # load config settings
 cp = getConfig()
@@ -211,7 +211,7 @@ def main(ids):
     service = Service(MOUSEMINEURL)
 
     mdo = buildMetaObject(service)
-    print '{"metadata": %s,' % json.dumps(mdo) 
+    print '{"metaData": %s,' % json.dumps(mdo) 
     print ' "data"    : ['
     #
     # IMPORTANT! Gene annotations must be retrieved *before* Genotype annots. 

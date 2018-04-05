@@ -21,7 +21,7 @@ import types
 import argparse
 
 # nonstandard dependencies
-from AGRlib import stripNulls, buildMetaObject
+from AGRlib import getConfig, stripNulls, buildMetaObject
 from intermine.webservice import Service
 
 #-----------------------------------
