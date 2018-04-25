@@ -23,7 +23,7 @@ import sys
 import json
 import itertools
 from intermine.webservice import Service
-from AGRlib import getConfig, stripNulls, buildMetaObject, getTimeStamp
+from AGRlib import getConfig, stripNulls, buildMgiDataProviderObject, buildMetaObject, getTimeStamp
 
 # load config settings
 cp = getConfig()
@@ -147,8 +147,12 @@ def applyConversions(a, kind):
         # FIXME FIXME FIXME
         # Rolled up allele-disease annotations have never been implemented in MGI. The rules implemented for mousmine are
         # ancient and incomplete. The following is a TEMPORARY measure to filter the annotations to a more acceptible set.
-        # We will only include a rolled up allele-disease annotation if the allele's gene has a rolled-up annotation to 
+	#
+	# To wit:
+	#
+        # We will only include a rolled up allele-disease annotation if the allele's gene also has a rolled-up annotation to 
         # the same disease. (Sue Bello suggested this rule.) 
+	#
         # The ultimate solution is to compute the rolled up annotations in MGI (as with gene-disease annotations) and simply
         # load them into MouseMine. There is a TR for this. When that TR is complete, the following can go away...
         # 
@@ -203,7 +207,7 @@ def formatDafJsonRecord (annot):
         'evidence':                     annot.agrevidence,
         #'geneticSex':                  '',
         'dateAssigned':                 annot.annotationDate,
-        'dataProvider':                 'MGI',
+        'dataProvider':                 [ buildMgiDataProviderObject() ],
     })
 
 #####

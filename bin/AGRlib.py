@@ -37,6 +37,15 @@ def stripNulls(obj):
             stripNulls(v)
     return obj
 
+#
+def buildMgiDataProviderObject () :
+    return {
+        "crossReference" : {
+	    "ID" : "MGI",
+	    "pages" : ["homepage"]
+	},
+	"type" : "curated"
+    }
 # Constructs and returns the metaData (header) for the dump file.
 #
 def buildMetaObject(service):
@@ -55,7 +64,7 @@ def buildMetaObject(service):
       release = r.description[i:].strip()[1:-1].strip()
 
     return {
-    "dataProvider" : "MGI",
+    "dataProvider" : [buildMgiDataProviderObject()],
     "dateProduced" : currentDate,
     "release" : release
     }

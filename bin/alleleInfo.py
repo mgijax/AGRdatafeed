@@ -33,7 +33,7 @@ taxon         = cp.get("DEFAULT","TAXONID")
 GLOBALTAXONID = cp.get("DEFAULT","GLOBALTAXONID")
 GENELITURL    = cp.get("DEFAULT","GENELITURL")
 MYGENEURL     = cp.get("DEFAULT","MYGENEURL")
-SAMPLEIDS     = cp.get("DEFAULT","SAMPLEIDS").split()
+SAMPLEIDS     = cp.get("DEFAULT","SAMPLEALLELEIDS").split()
 MGD_OLD_PREFIX= cp.get("DEFAULT","MGD_OLD_PREFIX")
 
 # Mapping from data provider name as stored in MGI to name as needed by AGR
@@ -54,22 +54,22 @@ mousemine = Service(MOUSEMINEURL)
 def buildAlleleQuery(service,ids):
     query = service.new_query("Allele")
     query.add_constraint("feature", "Gene")
-    query.add_view("primaryIdentifier", "symbol", "name", "feature.primaryIdentifier", "synonyms.value")
+    query.add_view("feature.primaryIdentifier", "synonyms.value")
     query.add_constraint("organism.taxonId", "=", "10090", code = "A")
     query.add_constraint("alleleType", "NONE OF", ["QTL", "Transgenic"], code = "B")
     query.add_constraint("alleleType", "IS NULL", code = "E")
     query.add_constraint("isWildType", "=", "false", code = "C")
     query.add_constraint("ontologyAnnotations.ontologyTerm.id", "IS NOT NULL", code = "D")
     #
-    query.outerjoin("synonyms")
-    #
-    query.add_sort_order("symbol", "ASC")
-    #
     lexp = "A and (B or E) and C and D"
     if len(ids):
 	query.add_constraint("primaryIdentifier", "ONE OF", ids, code = "F")
         lexp += " and F"
     query.set_logic(lexp)
+    #
+    query.outerjoin("synonyms")
+    #
+    query.add_sort_order("symbol", "ASC")
     #
     return query
 
@@ -98,6 +98,7 @@ def getJsonObj(obj):
   return stripNulls({
     "primaryId"		: obj.primaryIdentifier,
     "symbol"		: insertSups(obj.symbol),
+    "symbolText"	: obj.symbol,
     "taxonId"           : "NCBITaxon:10090",
     "gene"	        : obj.feature.primaryIdentifier,
     "synonyms"          : syns,
