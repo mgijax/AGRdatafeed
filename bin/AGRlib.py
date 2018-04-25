@@ -41,7 +41,7 @@ def stripNulls(obj):
 def buildMgiDataProviderObject () :
     return {
         "crossReference" : {
-	    "ID" : "MGI",
+	    "id" : "MGI",
 	    "pages" : ["homepage"]
 	},
 	"type" : "curated"
