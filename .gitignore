@@ -1,6 +1,3 @@
-# ignore all subdirectories
-*/
-
 .DS_Store
 *.cfg
 *.pyc
