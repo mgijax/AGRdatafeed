@@ -195,7 +195,7 @@ def setAnnotationDate(a, kind):
 #
 def formatDafJsonRecord (annot):
     return stripNulls({
-        'taxonId':                      MOUSETAXONID,
+        #'taxonId':                      MOUSETAXONID,
         'objectId':                     annot.subject.primaryIdentifier,
         'objectName':                   annot.objectName,
         'objectRelation':               annot.objectRelation,
