@@ -54,7 +54,7 @@ mousemine = Service(MOUSEMINEURL)
 def buildAlleleQuery(service,ids):
     query = service.new_query("Allele")
     query.add_constraint("feature", "Gene")
-    query.add_view("feature.primaryIdentifier", "synonyms.value")
+    query.add_view("symbol", "name", "feature.primaryIdentifier", "synonyms.value")
     query.add_constraint("organism.taxonId", "=", "10090", code = "A")
     query.add_constraint("alleleType", "NONE OF", ["QTL", "Transgenic"], code = "B")
     query.add_constraint("alleleType", "IS NULL", code = "E")
@@ -93,8 +93,20 @@ def formatXrefs(obj):
 # conforming to the spec.
 #
 def getJsonObj(obj):
-  syns = list(set(insertSups(s.value) for s in obj.synonyms ))
+  ###
+  # MouseMine is loading things as allele synonyms that should not be included. 
+  # Until this is fixed, weed out the unwanted ones here. Basically, the allele's
+  # symbol and name are both being included and need to be screen out.
+  # Note that in mousemine, allele.name includes the gene's name followed by a semicolon followed
+  # by the allele's name.
+  nn = obj.name.rsplit(';')[-1].strip()
+  syns = set()
+  for s in obj.synonyms:
+      if s.value != obj.symbol and s.value != nn:
+          syns.add(s.value)
+  syns = list(syns)
   syns.sort()
+  ###
   return stripNulls({
     "primaryId"		: obj.primaryIdentifier,
     "symbol"		: insertSups(obj.symbol),
