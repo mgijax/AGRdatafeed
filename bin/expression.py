@@ -115,7 +115,7 @@ def getJsonObj(obj, structureName):
       },
       'whenExpressedStage': obj['stage'],
       'assay': obj['assayType'],
-      'dateAssigned' : '??',
+      'dateAssigned' : '2017-06-22T13:27:43-04:00',
       'wildtypeExpressionTermIdentifiers' : {
           'anatomicalStructureTermId' : obj['structure.identifier'],
 	  'whereExpressedStatement' : structureName
@@ -148,7 +148,8 @@ def main():
   exprData = getExpressionData(mousemine, ids)
   print '{ "metaData" : %s, ' % json.dumps(buildMetaObject(mousemine))
   print '  "data" : ['
-  for r in exprData:
+  for i,r in enumerate(exprData):
+      if i: print ",",
       print json.dumps(getJsonObj(r, id2emapa[r['structure.identifier']]), sort_keys=True, indent=2, separators=(',', ': '))
   print ']}'
 
