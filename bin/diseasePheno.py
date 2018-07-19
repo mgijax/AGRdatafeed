@@ -217,8 +217,10 @@ def formatDafJsonRecord (annot, kind):
             'objectId':                     annot.subject.primaryIdentifier,
             'phenotypeTermIdentifiers':     [{ "termId" : annot.ontologyTerm.identifier, 'termOrder' : 1 }],
             'phenotypeStatement':           annot.ontologyTerm.name,
-            'pubModId':                     annot.agrevidence['publication'].get('modPublicationId', None),
-            'pubMedId':                     annot.agrevidence['publication'].get('pubMedId', None),
+	    'evidence': {
+		'modPublicationId':         annot.agrevidence['publication'].get('modPublicationId', None),
+		'pubMedId':                 annot.agrevidence['publication'].get('pubMedId', None),
+	    },
             'dateAssigned':                 annot.annotationDate,
             })
 
