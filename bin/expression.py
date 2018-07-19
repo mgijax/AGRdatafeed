@@ -18,6 +18,8 @@
 # TODO: anatomy terms mapped to AGR grouping labels.
 # See: https://docs.google.com/spreadsheets/d/1_UcKTq7y-wsQ83_kJlP6X5mQdgKykaPWlDdkZzCuygI/edit#gid=313336440
 #
+# FIXME: Need annotation dates!
+#
 # Theiler stages mapped to:
 # See https://docs.google.com/spreadsheets/d/1_UcKTq7y-wsQ83_kJlP6X5mQdgKykaPWlDdkZzCuygI/edit#gid=463437957
 #
@@ -40,6 +42,19 @@ import argparse
 from AGRlib import getConfig, stripNulls, buildMetaObject
 from intermine.webservice import Service
 
+#-----------------------------------
+# mapping courtesy of Connie Smith @MGI.
+assayType2mmo = dict([
+    ('Immunohistochemistry','MMO:0000498'),
+    ('In situ reporter (knock in)','MMO:0000672'),
+    ('Northern blot','MMO:0000647'),
+    ('Nuclease S1','MMO:0000653'),
+    ('RT-PCR','MMO:0000655'),
+    ('RNase protection','MMO:0000652'),
+    ('RNA in situ','MMO:0000658'),
+    ('Western blot','MMO:0000669'),
+])
+ 
 #-----------------------------------
 # load config settings
 cp = getConfig()
@@ -94,7 +109,10 @@ def getExpressionData(service,ids):
     prev = None
     unique = []
     for r in data:
-	if not prev or r["assayId"] != prev["assayId"] or r["stage"] != prev["stage"] or r["structure.identifier"] != prev["structure.identifier"]:
+	if not prev \
+	or r["assayId"] != prev["assayId"] \
+	or r["stage"] != prev["stage"] \
+	or r["structure.identifier"] != prev["structure.identifier"]:
 	    unique.append(r)
 	#
 	prev = r
@@ -114,15 +132,15 @@ def getJsonObj(obj, structureName):
 	  'pubMedId': mkid(obj['publication.pubMedId'], 'PMID:')
       },
       'whenExpressedStage': obj['stage'],
-      'assay': obj['assayType'],
-      'dateAssigned' : '2017-06-22T13:27:43-04:00',
+      'assay': assayType2mmo[obj['assayType']],
+      'dateAssigned' : '2018-07-18T13:27:43-04:00', # FIXME
       'wildtypeExpressionTermIdentifiers' : {
           'anatomicalStructureTermId' : obj['structure.identifier'],
 	  'whereExpressedStatement' : structureName
       },
       'crossReference' : {
           'id' : obj['assayId'],
-	  'pages' : [ 'gene/expression/annotation' ]
+	  'pages' : [ 'gene/expression/annotation/detail' ]
       }
   })
 
