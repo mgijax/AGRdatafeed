@@ -43,7 +43,8 @@ from AGRlib import getConfig, stripNulls, buildMetaObject
 from intermine.webservice import Service
 
 #-----------------------------------
-# mapping courtesy of Connie Smith @MGI.
+# Mapping from our assay type to MMO ids
+# courtesy of Connie Smith @MGI.
 assayType2mmo = dict([
     ('Immunohistochemistry','MMO:0000498'),
     ('In situ reporter (knock in)','MMO:0000672'),
@@ -55,6 +56,55 @@ assayType2mmo = dict([
     ('Western blot','MMO:0000669'),
 ])
  
+#-----------------------------------
+# mappings from high level EMAPA terms to UBERON terms
+# mappings from: https://docs.google.com/spreadsheets/d/1_UcKTq7y-wsQ83_kJlP6X5mQdgKykaPWlDdkZzCuygI/edit#gid=313336440
+uberonEmapaTbl = map(lambda row:row.split('\t'), ('''
+UBERON:0001009	EMAPA:16104	cardiovascular system
+UBERON:0001007	EMAPA:16246	alimentary system
+UBERON:0001007	EMAPA:16840	liver and biliary system
+UBERON:0000949	EMAPA:35306	endocrine system
+UBERON:0001008	EMAPA:17366	urinary system
+UBERON:0002330	EMAPA:35329	exocrine system
+UBERON:0002193	EMAPA:18765	hemolymphoid system
+UBERON:0002416	EMAPA:17524	integumental system
+UBERON:0002423	EMAPA:16840	liver and biliary system
+UBERON:0002204	EMAPA:32714	musculoskeletal system
+UBERON:0001016	EMAPA:16469	nervous system
+UBERON:0000990	EMAPA:17381	reproductive system
+UBERON:0001004	EMAPA:16727	respiratory system
+UBERON:0001032	EMAPA:16192	sensory organ system
+UBERON:0005726	EMAPA:36004	olfactory system
+UBERON:0005726	EMAPA:36885	gustatory system
+UBERON:0007037	N/A	
+UBERON:0002105	EMAPA:37985	vestibulo-auditory system
+UBERON:0002104	EMAPA:36003	visual system
+UBERON:0000924	EMAPA:35985	ectoderm
+UBERON:0000925	EMAPA:35986	endoderm
+UBERON:0000926	EMAPA:35987	mesoderm
+UBERON:0003104	EMAPA:16097	mesenchyme
+UBERON:0001013	EMAPA:35112	adipose tissue
+UBERON:0000026	EMAPA:37283	appendage
+UBERON:0016887	EMAPA:16042	extraembryonic component
+UBERON:6005023	N/A	
+UBERON:0002539	EMAPA:16117	branchial arch
+'''.strip().split('\n')))
+
+# index the table
+emapa2uberon = {}
+for r in uberonEmapaTbl:
+    emapa2uberon[r[1]] = r[0]
+
+# the set of high level EMAPA term IDs
+highlevelemapa = set(emapa2uberon.keys())
+
+#-----------------------------------
+# mappings from Theiler stages to UBERON stage term IDs
+ts2uberon = dict( \
+    [('TS%02d'%(i+1),'UBERON:0000068') for i in range(26)] + \
+    [('TS27','post embryonic, pre-adult')] + \
+    [('TS28', 'UBERON:0000113')])
+
 #-----------------------------------
 # load config settings
 cp = getConfig()
@@ -70,19 +120,56 @@ def log(msg):
     sys.stderr.write(msg + '\n')
 
 #-----------------------------------
-# Returns a mapping from EMAPA id to EMAPA structure name
+# Returns a mapping from EMAPA id to EMAPA term obj
+# Each term has attributes: name, startsAt, endsAt/
 def loadEMAPA (service):
+    log('Loading EMAPA...')
     id2emapa = {}
     query = service.new_query("EMAPATerm")
-    query.add_view("identifier", "name")
+    query.add_view("identifier", "name", "startsAt", "endsAt")
     for t in query:
-        id2emapa[t.identifier] = t.name
+        id2emapa[t.identifier] = t
+    log('Loaded %d EMAPA terms.'%len(id2emapa))
     return id2emapa
+
+#-----------------------------------
+# Loads/returns a mapping from EMAPA id to the IDs of its immediate parents
+def loadEMAPAParents(service):
+    log('Loading EMAPA parents...')
+
+    query = service.new_query("OntologyRelation")
+    query.add_constraint("childTerm", "EMAPATerm")
+    query.add_constraint("parentTerm", "EMAPATerm")
+    query.add_view("childTerm.identifier", "parentTerm.identifier")
+    query.add_constraint("direct", "=", "true", code = "A")
+
+    id2pids = {}
+    for i,r in enumerate(query):
+        id2pids.setdefault(r.childTerm.identifier, []).append(r.parentTerm.identifier)
+    log('Loaded %d parent/child relations.' % i)
+    return id2pids
+
+
+#-----------------------------------
+# Returns the ancestors of the given term at the given stage.
+#
+def ancestorsAt (termId, stage, id2emapa, id2pids) :
+    ancestors = set()
+    def _(t):
+        for pid in id2pids.get(t.identifier,[]):
+	    p = id2emapa[pid]
+	    if p.startsAt <= stage and p.endsAt >= stage:
+		ancestors.add(pid)
+		_(p)
+        
+    _(id2emapa[termId])    
+    return ancestors
 
 #-----------------------------------
 # Returns unique-ified expression assay results. 
 #
 def getExpressionData(service,ids):
+    log('Getting expression data...')
     query = service.new_query("GXDExpression")
     #
     query.add_view(
@@ -117,13 +204,13 @@ def getExpressionData(service,ids):
 	#
 	prev = r
     #
-    #log('getExpressionData: %d results => %d unique results' % (len(data), len(unique)))
+    log('getExpressionData: %d results => %d unique results' % (len(data), len(unique)))
     return unique
 
 # Here is the magic by which an object returned by the query is converted to an object
 # conforming to the spec.
 #
-def getJsonObj(obj, structureName):
+def getJsonObj(obj, structureName, uids):
   mkid = lambda i,p: None if i is None else p+i
   return stripNulls({
       'geneId': obj['feature.primaryIdentifier'],
@@ -131,13 +218,17 @@ def getJsonObj(obj, structureName):
           'modPublicationId': obj['publication.mgiJnum'],
 	  'pubMedId': mkid(obj['publication.pubMedId'], 'PMID:')
       },
-      'whenExpressedStage': obj['stage'],
       'assay': assayType2mmo[obj['assayType']],
       'dateAssigned' : '2018-07-18T13:27:43-04:00', # FIXME
-      'wildtypeExpressionTermIdentifiers' : {
-          'anatomicalStructureTermId' : obj['structure.identifier'],
+      'whereExpressed': {
+	  'anatomicalStructureTermId' : obj['structure.identifier'],
+	  'anatomcialStructureUberonSlimTermIds': map(lambda u: {'uberonTerm':u}, uids),
 	  'whereExpressedStatement' : structureName
-      },
+      },  
+      'whenExpressed': {
+	  'stageName': obj['stage'],
+	  'stageUberonSlimTerm': {'uberonTerm':ts2uberon[obj['stage']]}
+      },  
       'crossReference' : {
           'id' : obj['assayId'],
 	  'pages' : [ 'gene/expression/annotation/detail' ]
@@ -159,17 +250,54 @@ def parseCmdLine():
   
 # Main prog. Build the query, run it, and output 
 def main():
+  noMapping = set()
   args = parseCmdLine()
   ids = args.identifiers
   #
   id2emapa = loadEMAPA(mousemine)
+  id2pids = loadEMAPAParents(mousemine)
+
+  '''
+  print 'Telencephalon ancestors at stage 15:'
+  ancs = ancestorsAt('EMAPA:16910', 15, id2emapa, id2pids)
+  for aid in ancs:
+      a = id2emapa[aid]
+      print a.identifier, a.name, a.startsAt, a.endsAt
+      
+  print 'Telencephalon ancestors at stage 18:'
+  ancs = ancestorsAt('EMAPA:16910', 18, id2emapa, id2pids)
+  for aid in ancs:
+      a = id2emapa[aid]
+      print a.identifier, a.name, a.startsAt, a.endsAt
+      
+  sys.exit(0)
+  '''
+
   exprData = getExpressionData(mousemine, ids)
   print '{ "metaData" : %s, ' % json.dumps(buildMetaObject(mousemine))
   print '  "data" : ['
   for i,r in enumerate(exprData):
       if i: print ",",
-      print json.dumps(getJsonObj(r, id2emapa[r['structure.identifier']]), sort_keys=True, indent=2, separators=(',', ': '))
+      eid = r['structure.identifier']
+      structureName = id2emapa[eid].name
+      s = int(r['stage'][2:])
+      ancs = ancestorsAt(eid, s, id2emapa, id2pids)
+      # the high level EMAPA ids this annot rolls up to (intersect my ancestors with the HL EMAPA set)
+      hla = highlevelemapa & ancs
+      # the uberon IDs these map to
+      uids = set(map(lambda a: emapa2uberon.get(a,'Other') ,hla))
+      if len(uids) == 0:
+	  noMapping.add((eid, structureName))
+          uids = ['Other']
+      # get the JSON object for this annotation
+      jobj = getJsonObj(r, structureName, uids)
+      #
+      print json.dumps(jobj, sort_keys=True, indent=2, separators=(',', ': '))
   print ']}'
+  noMapping = list(noMapping)
+  noMapping.sort()
+  for p in noMapping:
+      log('No UBERON mapping for: %s %s' % p)
 
 #
 main()
