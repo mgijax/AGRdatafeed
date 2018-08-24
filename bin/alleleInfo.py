@@ -104,7 +104,7 @@ def getJsonObj(obj):
   for s in obj.synonyms:
       if s.value != obj.symbol and s.value != nn:
           syns.add(s.value)
-  syns = list(syns)
+  syns = map(insertSups, list(syns))
   syns.sort()
   ###
   return stripNulls({
