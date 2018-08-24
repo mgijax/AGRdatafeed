@@ -64,7 +64,7 @@ def buildMetaObject(service):
       release = r.description[i:].strip()[1:-1].strip()
 
     return {
-    "dataProvider" : [buildMgiDataProviderObject()],
+    "dataProvider" : buildMgiDataProviderObject(),
     "dateProduced" : currentDate,
     "release" : release
     }
