@@ -213,10 +213,12 @@ def formatDafJsonRecord (annot, kind):
             'dataProvider':                 [ buildMgiDataProviderObject() ],
         })
     else:
+	# guard against data issue: MP record w/o a name. 
+	pstmt = annot.ontologyTerm.name if annot.ontologyTerm.name else '?'
         return stripNulls({
             'objectId':                     annot.subject.primaryIdentifier,
             'phenotypeTermIdentifiers':     [{ "termId" : annot.ontologyTerm.identifier, 'termOrder' : 1 }],
-            'phenotypeStatement':           annot.ontologyTerm.name,
+            'phenotypeStatement':           pstmt,
 	    'evidence': {
 		'modPublicationId':         annot.agrevidence['publication'].get('modPublicationId', None),
 		'pubMedId':                 annot.agrevidence['publication'].get('pubMedId', None),
