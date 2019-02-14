@@ -154,7 +154,10 @@ def formatSecondary(identifier):
 def formatMyGeneLink(obj):
     if not hasattr(obj, "homologues") or len(obj.homologues) != 1:
         return None
-    symbol = obj.homologues[0].homologue.crossReferences[0].identifier
+    xrs = obj.homologues[0].homologue.crossReferences
+    if len(xrs) == 0:
+        return None
+    symbol = xrs[0].identifier
     # FIXME: Currently, the agr schema for global id's doesn't allow ":" in the suffix part.
     # A few of these wiki links do, so we'll filter them out for now.
     # TODO: Ask DQMs to change the globalId pattern. Then remove this filter.
