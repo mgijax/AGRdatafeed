@@ -93,7 +93,8 @@ UBERON:0002539	EMAPA:16117	branchial arch
 # index the table
 emapa2uberon = {}
 for r in uberonEmapaTbl:
-    emapa2uberon[r[1]] = r[0]
+    if r[1] != 'N/A':
+        emapa2uberon[r[1]] = r[0]
 
 # the set of high level EMAPA term IDs
 highlevelemapa = set(emapa2uberon.keys())
@@ -151,10 +152,11 @@ def loadEMAPAParents(service):
 
 
 #-----------------------------------
-# Returns the ancestors of the given term at the given stage.
+# Returns the IDs of all ancestors of the given term at the given stage.
+# Includes the term's own ID (ie, reflexive transitive closure)
 #
 def ancestorsAt (termId, stage, id2emapa, id2pids) :
-    ancestors = set()
+    ancestors = set([termId])
     def _(t):
         for pid in id2pids.get(t.identifier,[]):
 	    p = id2emapa[pid]
@@ -162,7 +164,7 @@ def ancestorsAt (termId, stage, id2emapa, id2pids) :
 		ancestors.add(pid)
 		_(p)
         
-    _(id2emapa[termId])    
+    _(id2emapa[termId])
     return ancestors
 
 #-----------------------------------
@@ -174,7 +176,7 @@ def getExpressionData(service,ids):
     #
     query.add_view(
         "assayId", "assayType", "feature.primaryIdentifier",
-	"stage", "structure.identifier", "publication.mgiJnum",
+	"stage", "structure.identifier", "publication.mgiId",
 	"publication.pubMedId"
     )
     query.add_constraint("detected", "=", "true", code = "B")
@@ -215,7 +217,7 @@ def getJsonObj(obj, structureName, uids):
   return stripNulls({
       'geneId': obj['feature.primaryIdentifier'],
       'evidence' : {
-          'modPublicationId': obj['publication.mgiJnum'],
+          'modPublicationId': obj['publication.mgiId'],
 	  'pubMedId': mkid(obj['publication.pubMedId'], 'PMID:')
       },
       'assay': assayType2mmo[obj['assayType']],
@@ -286,6 +288,12 @@ def main():
       hla = highlevelemapa & ancs
       # the uberon IDs these map to
       uids = set(map(lambda a: emapa2uberon.get(a,'Other') ,hla))
+      if eid == 'EMAPA:35177':
+          log('\n' + eid + ' ' + structureName + ' TS ' + str(s))
+	  log('ancs=' + str(ancs))
+	  log('hla=' + str(hla))
+	  log('uids=' + str(uids))
+
       if len(uids) == 0:
 	  noMapping.add((eid, structureName))
           uids = ['Other']
