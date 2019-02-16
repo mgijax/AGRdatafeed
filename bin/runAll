@@ -1,7 +1,7 @@
 #!/bin/bash
 
 function usage {
-  echo "
+  logit "
 Usage: $0 -R schema_release -C dump_count [-D output_directory][-g][-a][-e][-p][-d][-f]
 Generates files for upload to the Alliance. Typical invocation:
 	$0 -R 1.0.0.7 -C 3 -D .
@@ -13,6 +13,7 @@ Options:
 -C	Specifies the update count for this schema version (1, 2, 3, ...). Required.
 -D	Specifies the parent directory where the output directory will be created.
 	Default = current working directory.
+-V	Directory where agr validator is installed. Optional. If not specified, no validation is done.
 
 Specify any combination of the following options to run just those pieces.
 If none are specified, ALL are run.
@@ -25,6 +26,54 @@ If none are specified, ALL are run.
 "
 }
 
+# ---------------------
+# Echos its arguments to the log file. Prepends a datetime stamp.
+#
+function logit {
+  echo `date` "$*" 
+}
+
+# ---------------------
+# Logs a message and exits with error code 1.
+#
+function die {
+    logit "$*"
+    exit 1
+}
+
+# ---------------------
+# If the exit code of the last command ($?) is not zero, exits with a message.
+#
+function checkExit {
+    c=$?
+    if [ $c -ne 0 ]; then
+	if [ $1 == "-w" ] ; then
+	    shift
+	    logit "WARNING: nonzero exit code detected." "$*"
+	else
+	    die "ERROR: $*" 
+	fi
+    fi  
+    return 0
+}
+
+# ---------------------
+# Run the agr validator. 
+# Args:
+#  $1 = relative path (from the schema directory) to the jsonschema spec file
+#  $2 = full path to the file
+function validate {
+  if [[ ${VALIDATOR_DIR} ]] ; then
+      logit "Validating $2 against schema file $1..."
+      python ${VALIDATOR_DIR}/agr_validate.py -s ${VALIDATOR_DIR}/$1 -d $2
+      checkExit -w 
+  else
+      logit "No validation directory specified. Not validating: $2"
+  fi
+}
+
+# ---------------------
+# Initialize vars
 OUTPUT_DIR="."
 SCHEMA_RELEASE=""
 RELEASE_COUNT=""
@@ -35,7 +84,10 @@ DO_EXPRESSION=""
 DO_DISEASE=""
 DO_PHENO=""
 DO_GFF=""
+VALIDATOR_DIR=""
 
+# ---------------------
+# Process command line args
 until [ -z "$1" ] 
 do
     case "$1" in
@@ -50,6 +102,10 @@ do
     -R) 
 	shift
         SCHEMA_RELEASE="$1"
+        ;;  
+    -V) 
+	shift
+        VALIDATOR_DIR="$1"
         ;;  
     -C) 
 	shift
@@ -80,9 +136,8 @@ do
 	DO_ALL=""
         ;; 
     *)  
-        echo "Unrecognized option:" $1
 	usage
-        exit -1
+        die "Unrecognized option:" $1
     esac
     shift
 done
@@ -90,13 +145,11 @@ done
 # ---------------------------------------
 # Check parameters
 if [[ ! ${SCHEMA_RELEASE} ]] ; then
-  echo "Please specify a schema version."
-  exit -1
+  die "Please specify a schema version."
 fi
 
 if [[ ! ${RELEASE_COUNT} ]] ; then
-  echo "Please specify a release count."
-  exit -1
+  die "Please specify a release count."
 fi
 
 # ---------------------------------------
@@ -105,48 +158,72 @@ ODIR="${OUTPUT_DIR}/MGI_${SCHEMA_RELEASE}_${RELEASE_COUNT}"
 ROOT="${ODIR}/MGI_${SCHEMA_RELEASE}"
 
 # ---------------------------------------
+logit
+logit "This is the Alliance data dumper. Starting run..."
+
+# ---------------------------------------
 #
+logit "mkdir -p ${ODIR}"
 mkdir -p ${ODIR}
+checkExit
 
 # ---------------------------------------
 # BGI
 if [[ ${DO_ALL} || ${DO_BGI} ]] ; then
-  echo "Generating basic gene info file..."
-  python basicGeneInfo.py > ${ROOT}_BGI.json
+  FILE="${ROOT}_BGI.json"
+  logit "Generating basic gene info file ${FILE}"
+  python basicGeneInfo.py > ${FILE}
+  checkExit -w
+  validate "gene/geneMetaData.json" ${FILE}
 fi
 
 # ---------------------------------------
 # Expression
 if [[ ${DO_ALL} || ${DO_EXPRESSION} ]] ; then
-  echo "Generating wildtype expression data file..."
-  python expression.py > ${ROOT}_expression.json
+  FILE="${ROOT}_expression.json"
+  logit "Generating wildtype expression data file ${FILE}"
+  python expression.py > ${FILE}
+  checkExit -w
+  validate "expression/wildtypeExpressionMetaDataDefinition.json" ${FILE}
 fi
 
 # ---------------------------------------
 # Alleles
 if [[ ${DO_ALL} || ${DO_ALLELES} ]] ; then
-  echo "Generating allele info file..."
-  python alleleInfo.py > ${ROOT}_allele.json
+  FILE="${ROOT}_allele.json"
+  logit "Generating allele info file ${FILE}"
+  python alleleInfo.py > ${FILE}
+  checkExit -w
+  validate "allele/alleleMetaData.json" ${FILE}
 fi
 
 # ---------------------------------------
 # Phenotypes
 if [[ ${DO_ALL} || ${DO_PHENO} ]] ; then
-  echo "Generating phenotype annotations file..."
-  python diseasePheno.py -p > ${ROOT}_phenotype.json
+  FILE="${ROOT}_phenotype.json"
+  logit "Generating phenotype annotations file ${FILE}"
+  python diseasePheno.py -p > ${FILE}
+  checkExit -w
+  validate "phenotype/phenotypeMetaDataDefinition.json" ${FILE}
 fi
 
 # ---------------------------------------
 # Disease
 if [[ ${DO_ALL} || ${DO_DISEASE} ]] ; then
-  echo "Generating disease annotations file..."
-  python diseasePheno.py -d > ${ROOT}_disease.json
+  FILE="${ROOT}_disease.json"
+  logit "Generating disease annotations file ${FILE}"
+  python diseasePheno.py -d > ${FILE}
+  checkExit -w
+  validate "disease/diseaseMetaDataDefinition.json" ${FILE}
 fi
 
 # ---------------------------------------
 # GFF3
 if [[ ${DO_ALL} || ${DO_GFF} ]] ; then
-  echo "Downloading MGI.agr.gff3..."
-  curl "http://www.informatics.jax.org/downloads/mgigff3/MGI.agr.gff3.gz" | gunzip > ${ROOT}_GFF.gff3
+  FILE="${ROOT}_GFF.gff3"
+  logit "Downloading ${FILE}"
+  curl "http://www.informatics.jax.org/downloads/mgigff3/MGI.agr.gff3.gz" | gunzip > ${FILE}
+  checkExit -w
 fi
 
+logit "Finished."
