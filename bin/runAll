@@ -1,0 +1,116 @@
+#!/bin/bash
+
+OUTPUT_DIR="."
+SCHEMA_RELEASE=""
+RELEASE_COUNT=""
+DO_ALL="true"
+DO_BGI=""
+DO_ALLELES=""
+DO_EXPRESSION=""
+DO_DISEASE=""
+DO_PHENO=""
+DO_GFF=""
+
+until [ -z "$1" ] 
+do
+    case "$1" in
+    -D) 
+	shift
+        OUTPUT_DIR="$1"
+        ;;  
+    -R) 
+	shift
+        SCHEMA_RELEASE="$1"
+        ;;  
+    -C) 
+	shift
+        RELEASE_COUNT="$1"
+        ;;  
+    -g) 
+        DO_BGI="true"
+	DO_ALL=""
+        ;;  
+    -a) 
+        DO_ALLELES="true"
+	DO_ALL=""
+        ;;  
+    -e) 
+        DO_EXPRESSION="true"
+	DO_ALL=""
+        ;; 
+    -d) 
+        DO_DISEASE="true"
+	DO_ALL=""
+        ;; 
+    -p) 
+        DO_PHENO="true"
+	DO_ALL=""
+        ;; 
+    -f) 
+        DO_GFF="true"
+	DO_ALL=""
+        ;; 
+    *)  
+        echo "Unrecognized option:" $1
+        exit -1
+    esac
+    shift
+done
+
+# ---------------------------------------
+# Check parameters
+if [[ ! ${SCHEMA_RELEASE} ]] ; then
+  echo "Please specify a schema version."
+  exit -1
+fi
+
+if [[ ! ${RELEASE_COUNT} ]] ; then
+  echo "Please specify a release count."
+  exit -1
+fi
+
+ODIR="${OUTPUT_DIR}/MGI_${SCHEMA_RELEASE}_${RELEASE_COUNT}"
+ROOT="${ODIR}/MGI_${SCHEMA_RELEASE}"
+
+# ---------------------------------------
+# BGI
+if [[ ${DO_ALL} || ${DO_BGI} ]] ; then
+  echo "Generating basic gene info file..."
+  python basicGeneInfo.py > ${ROOT}_BGI.json
+fi
+
+# ---------------------------------------
+# Expression
+if [[ ${DO_ALL} || ${DO_EXPRESSION} ]] ; then
+  echo "Generating wildtype expression data file..."
+  python expression.py > ${ROOT}_expression.json
+fi
+
+# ---------------------------------------
+# Alleles
+if [[ ${DO_ALL} || ${DO_ALLELES} ]] ; then
+  echo "Generating allele info file..."
+  python alleleInfo.py > ${ROOT}_allele.json
+fi
+
+# ---------------------------------------
+# Phenotypes
+if [[ ${DO_ALL} || ${DO_PHENO} ]] ; then
+  echo "Generating phenotype annotations file..."
+  python diseasePheno.py -p > ${ROOT}_phenotype.json
+fi
+
+# ---------------------------------------
+# Disease
+if [[ ${DO_ALL} || ${DO_DISEASE} ]] ; then
+  echo "Generating disease annotations file..."
+  python diseasePheno.py -d > ${ROOT}_disease.json
+fi
+
+# ---------------------------------------
+# GFF3
+if [[ ${DO_ALL} || ${DO_GFF} ]] ; then
+  echo "Downloading MGI.agr.gff3..."
+  curl "http://www.informatics.jax.org/downloads/mgigff3/MGI.agr.gff3.gz" | gunzip > ${ROOT}_GFF.gff3
+fi
+

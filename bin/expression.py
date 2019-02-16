@@ -39,8 +39,7 @@ import types
 import argparse
 
 # nonstandard dependencies
-from AGRlib import getConfig, stripNulls, buildMetaObject
-from intermine.webservice import Service
+from AGRlib import getConfig, stripNulls, buildMetaObject, doQuery, makeOneOfConstraint
 
 #-----------------------------------
 # Mapping from our assay type to MMO ids
@@ -112,8 +111,7 @@ cp = getConfig()
 #-----------------------------------
 # MouseMine connection
 
-MOUSEMINEURL  = cp.get("DEFAULT","MOUSEMINEURL")
-mousemine = Service(MOUSEMINEURL)
+MOUSEMINE  = cp.get("DEFAULT","MOUSEMINEURL")
 
 #-----------------------------------
 def log(msg):
@@ -122,30 +120,46 @@ def log(msg):
 #-----------------------------------
 # Returns a mapping from EMAPA id to EMAPA term obj
 # Each term has attributes: name, startsAt, endsAt/
-def loadEMAPA (service):
+def loadEMAPA (url):
     log('Loading EMAPA...')
     id2emapa = {}
-    query = service.new_query("EMAPATerm")
-    query.add_view("identifier", "name", "startsAt", "endsAt")
-    for t in query:
-        id2emapa[t.identifier] = t
+    q = '''
+    <query
+      model="genomic"
+      view="
+      EMAPATerm.identifier
+      EMAPATerm.name
+      EMAPATerm.startsAt
+      EMAPATerm.endsAt
+      "
+      >
+      </query>
+    '''
+    for t in doQuery(q, url):
+        id2emapa[t["identifier"]] = t
     log('Loaded %d EMAPA terms.'%len(id2emapa))
     return id2emapa
 
 #-----------------------------------
 # Loads/returns a mapping from EMAPA id to the IDs of its immediate parents
-def loadEMAPAParents(service):
+def loadEMAPAParents(url):
     log('Loading EMAPA parents...')
 
-    query = service.new_query("OntologyRelation")
-    query.add_constraint("childTerm", "EMAPATerm")
-    query.add_constraint("parentTerm", "EMAPATerm")
-    query.add_view("childTerm.identifier", "parentTerm.identifier")
-    query.add_constraint("direct", "=", "true", code = "A")
-
+    q = '''<query
+    name=""
+    model="genomic"
+    view="OntologyRelation.childTerm.identifier
+    OntologyRelation.parentTerm.identifier"
+    longDescription=""
+    sortOrder="OntologyRelation.childTerm.identifier asc"
+    >
+	<constraint path="OntologyRelation.childTerm" type="EMAPATerm"/>
+	<constraint path="OntologyRelation.parentTerm" type="EMAPATerm"/>
+	<constraint path="OntologyRelation.direct" op="=" value="true"/>
+    </query>'''
     id2pids = {}
-    for i,r in enumerate(query):
-        id2pids.setdefault(r.childTerm.identifier, []).append(r.parentTerm.identifier)
+    for i,r in enumerate(doQuery(q, url)):
+        id2pids.setdefault(r["childTerm.identifier"], []).append(r["parentTerm.identifier"])
     log('Loaded %d parent/child relations.' % i)
     return id2pids
 
@@ -156,9 +170,9 @@ def loadEMAPAParents(service):
 def ancestorsAt (termId, stage, id2emapa, id2pids) :
     ancestors = set()
     def _(t):
-        for pid in id2pids.get(t.identifier,[]):
+        for pid in id2pids.get(t["identifier"],[]):
 	    p = id2emapa[pid]
-	    if p.startsAt <= stage and p.endsAt >= stage:
+	    if p["startsAt"] <= stage and p["endsAt"] >= stage:
 		ancestors.add(pid)
 		_(p)
         
@@ -168,7 +182,7 @@ def ancestorsAt (termId, stage, id2emapa, id2pids) :
 #-----------------------------------
 # Returns unique-ified expression assay results. 
 #
-def getExpressionData(service,ids):
+def xetExpressionData(service,ids):
     log('Getting expression data...')
     query = service.new_query("GXDExpression")
     #
@@ -206,6 +220,45 @@ def getExpressionData(service,ids):
     #
     log('getExpressionData: %d results => %d unique results' % (len(data), len(unique)))
     return unique
+
+#
+def getExpressionData(url, ids):
+  log('Getting expression data...')
+  q = '''<query
+    model="genomic"
+    view="
+        GXDExpression.assayId
+	GXDExpression.assayType
+	GXDExpression.feature.primaryIdentifier
+	GXDExpression.stage
+	GXDExpression.structure.identifier
+	GXDExpression.publication.mgiJnum
+	GXDExpression.publication.pubMedId"
+    sortOrder="GXDExpression.assayId asc GXDExpression.structure.identifier asc GXDExpression.stage asc"
+    constraintLogic="A and (B or (C and D)) and E"
+    >
+      <constraint path="GXDExpression.detected" code="A" op="=" value="true"/>
+      <constraint path="GXDExpression.genotype.hasMutantAllele" code="B" op="=" value="false"/>
+      <constraint path="GXDExpression.assayType" code="C" op="=" value="In situ reporter (knock in)"/>
+      <constraint path="GXDExpression.genotype.zygosity" code="D" op="=" value="ht"/>
+      %s
+    </query>
+  ''' % makeOneOfConstraint('GXDExpression.feature.primaryIdentifier', ids)
+  prev = None
+  qcount = 0
+  ycount = 0
+  for r in doQuery(q, MOUSEMINE):
+      qcount += 1
+      if not prev \
+      or r["assayId"] != prev["assayId"] \
+      or r["stage"] != prev["stage"] \
+      or r["structure.identifier"] != prev["structure.identifier"]:
+	  ycount += 1
+	  yield r
+      #
+      prev = r
+      #
+  log('getExpressionData: %d results => %d unique results' % (qcount, ycount))
 
 # Here is the magic by which an object returned by the query is converted to an object
 # conforming to the spec.
@@ -254,8 +307,8 @@ def main():
   args = parseCmdLine()
   ids = args.identifiers
   #
-  id2emapa = loadEMAPA(mousemine)
-  id2pids = loadEMAPAParents(mousemine)
+  id2emapa = loadEMAPA(MOUSEMINE)
+  id2pids = loadEMAPAParents(MOUSEMINE)
 
   '''
   print 'Telencephalon ancestors at stage 15:'
@@ -270,16 +323,15 @@ def main():
       a = id2emapa[aid]
       print a.identifier, a.name, a.startsAt, a.endsAt
       
-  sys.exit(0)
   '''
 
-  exprData = getExpressionData(mousemine, ids)
-  print '{ "metaData" : %s, ' % json.dumps(buildMetaObject(mousemine))
+  exprData = getExpressionData(MOUSEMINE, ids)
+  print '{ "metaData" : %s, ' % json.dumps(buildMetaObject(MOUSEMINE))
   print '  "data" : ['
   for i,r in enumerate(exprData):
       if i: print ",",
       eid = r['structure.identifier']
-      structureName = id2emapa[eid].name
+      structureName = id2emapa[eid]["name"]
       s = int(r['stage'][2:])
       ancs = ancestorsAt(eid, s, id2emapa, id2pids)
       # the high level EMAPA ids this annot rolls up to (intersect my ancestors with the HL EMAPA set)

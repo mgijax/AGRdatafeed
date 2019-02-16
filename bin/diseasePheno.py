@@ -23,14 +23,14 @@
 import sys
 import argparse
 import json
-import itertools
-from intermine.webservice import Service
-from AGRlib import getConfig, stripNulls, buildMgiDataProviderObject, buildMetaObject, getTimeStamp
+from itertools import imap, chain, groupby
+from AGRlib import getConfig, stripNulls, buildMgiDataProviderObject, buildMetaObject, getTimeStamp, makeOneOfConstraint, doQuery
+import heapq
 
 # load config settings
 cp = getConfig()
 
-MOUSEMINEURL    = cp.get("DEFAULT","MOUSEMINEURL")
+MOUSEMINE    = cp.get("DEFAULT","MOUSEMINEURL")
 TAXONID         = cp.get("DEFAULT","TAXONID")
 MOUSETAXONID    = cp.get("DEFAULT","GLOBALTAXONID")
 DO_GENES        = cp.getboolean("dafFile","DO_GENES")
@@ -49,29 +49,94 @@ DO_GENOS        = cp.getboolean("dafFile","DO_GENOS")
 #   An iterator that will yield annotations. Annotations are objects - use dot notation to access parts,
 #   e.g., a.subject.symbol
 #
-def annotations(service, okind, skind, ids = None):
-      query = service.new_query("OntologyAnnotation")
-      #
-      query.add_constraint("ontologyTerm", okind)
-      query.add_constraint("subject", skind)
-      #
-      query.add_view(
-          "subject.primaryIdentifier",
-          "subject.symbol",
-          "subject.name",
-          "ontologyTerm.identifier",
-          "ontologyTerm.name",
-          "evidence.annotationDate",
-          "evidence.code.code",
-          "evidence.publications.pubMedId",
-          "evidence.publications.mgiJnum",
-          "evidence.publications.mgiId"
-      )
-      if skind == "Allele":
-          query.add_view("subject.feature.primaryIdentifier")
+def annotations(url, okind, skind, ids = None):
+    qopts = {
+      'alleleFeatView': "OntologyAnnotation.subject.feature.primaryIdentifier" if skind == "Allele" else "",
+      'xtraConstraint': makeOneOfConstraint("OntologyAnnotation.subject.primaryIdentifier",  ids),
+      'xtraConstraint2': makeOneOfConstraint("OntologyAnnotationEvidence.annotation.subject.primaryIdentifier",  ids),
+      'okind': okind,
+      'skind': skind,
+    }
 
-      query.add_constraint("subject.organism.taxonId", "=", "10090")
-      #
+    qAnnots = '''<query
+    model="genomic"
+    view="
+	OntologyAnnotation.id
+	OntologyAnnotation.subject.primaryIdentifier
+	OntologyAnnotation.subject.symbol
+	OntologyAnnotation.subject.name
+	OntologyAnnotation.ontologyTerm.identifier
+	OntologyAnnotation.ontologyTerm.name
+	OntologyAnnotation.qualifier
+	%(alleleFeatView)s
+	"
+    sortOrder="OntologyAnnotation.id asc"
+    >
+    <constraint path="OntologyAnnotation.ontologyTerm" type="%(okind)s"/>
+    <constraint path="OntologyAnnotation.subject" type="%(skind)s"/>
+    <constraint path="OntologyAnnotation.subject.organism.taxonId" op="=" value="10090"/>
+    %(xtraConstraint)s
+    </query>
+    ''' % qopts
+
+    qEvidence = '''<query
+    model="genomic"
+    view="
+	OntologyAnnotation.id
+	OntologyAnnotation.evidence.id
+	OntologyAnnotation.evidence.annotationDate
+	OntologyAnnotation.evidence.code.code
+	OntologyAnnotation.evidence.publications.pubMedId
+	OntologyAnnotation.evidence.publications.mgiJnum
+	OntologyAnnotation.evidence.publications.mgiId
+	%(alleleFeatView)s
+	"
+    sortOrder="OntologyAnnotation.id asc OntologyAnnotation.evidence.id asc"
+    >
+    <constraint path="OntologyAnnotation.ontologyTerm" type="%(okind)s"/>
+    <constraint path="OntologyAnnotation.subject" type="%(skind)s"/>
+    <constraint path="OntologyAnnotation.subject.organism.taxonId" op="=" value="10090"/>
+    %(xtraConstraint)s
+    </query>
+    ''' % qopts
+
+    qBaseAnnots = '''<query
+	model="genomic"
+	view="
+	    OntologyAnnotationEvidence.id
+	    OntologyAnnotationEvidence.annotation.id
+	    OntologyAnnotationEvidence.baseAnnotations.subject.primaryIdentifier
+	    OntologyAnnotationEvidence.baseAnnotations.evidence.annotationDate
+	    "
+	sortOrder="OntologyAnnotationEvidence.annotation.id asc OntologyAnnotationEvidence.id asc"
+	>
+	<constraint path="OntologyAnnotationEvidence.annotation.ontologyTerm" type="%(okind)s"/>
+	<constraint path="OntologyAnnotationEvidence.annotation.subject" type="%(skind)s"/>
+	%(xtraConstraint2)s
+	</query>
+    ''' % qopts
+
+    qs = [
+      imap(lambda x: (x[0], 'annotation', list(x[1])), groupby(doQuery(qAnnots, url), lambda e: e['id'])),
+      imap(lambda x: (x[0], 'evidence', list(x[1])), groupby(doQuery(qEvidence, url), lambda e: e['id'])),
+      imap(lambda x: (x[0], 'baseAnnots', list(x[1])), groupby(doQuery(qBaseAnnots, url), lambda e: e['annotation.id'])),
+    ]
+    for x in groupby(heapq.merge(*qs), lambda x: x[0]):
+	r = {}
+	for y in x[1]:
+	    if y[1] == 'annotation':
+		r.update(y[2][0])
+	    elif y[1] == 'evidence':
+		r['evidence'] = y[2]
+	    elif y[1] == 'baseAnnots':
+	        r['baseAnnots'] = y[2]
+	rr = applyConversions(r, skind)
+	if rr:
+	  for e in rr["invevidence"]:
+	      rr["agrevidence"] = e
+	      yield formatDafJsonRecord(rr, "disease" if okind == "DOTerm" else "phenotype")
+
+def xnnotations(service, okind, skind, ids = None):
       if skind == "SequenceFeature": # FIXME: Alleles should also have baseAnnotations. 
           query.add_constraint("evidence.baseAnnotations.subject", "Genotype")
           query.add_view(
@@ -79,12 +144,6 @@ def annotations(service, okind, skind, ids = None):
             "evidence.baseAnnotations.evidence.annotationDate"
           )
           query.outerjoin("evidence.baseAnnotations")
-      #
-      if ids and len(ids):
-          query.add_constraint("subject.primaryIdentifier", "ONE OF", ids)
-      #
-      query.add_sort_order("subject.primaryIdentifier", "ASC")
-      query.add_sort_order("ontologyTerm.identifier", "ASC")
       #
       for a in query:
           if not applyConversions(a, skind):
@@ -109,39 +168,41 @@ def applyConversions(a, kind):
     global geno2genes
     #
     # "not" is the only recognized qualifier for 1.0
-    a.qualifier = "not" if a.qualifier == "NOT" else None
+    if not 'qualifier' in a:
+      print '\n\nERROR:', a
+    a["qualifier"] = "not" if a["qualifier"] == "NOT" else None
     #
     # MGI (and MM) store evidence as one evidence code with >= 1 ref.
     # AGR inverts this: one reference with >= 1 evidence code.
     ref2codes = {}
-    for e in a.evidence:
-        for p in e.publications:
-            # FIXME: temporary tweak for MouseMine annotations. Remove once allele-annotations are being loaded from MGI
-            if e.code.code == "DOA": e.code.code = "TAS"
-            ##
-            ref2codes.setdefault((p.mgiId,p.pubMedId), set()).add(e.code.code)
-    a.invevidence = []
+    for e in a["evidence"]:
+	# FIXME: temporary tweak for MouseMine annotations. Remove once allele-annotations are being loaded from MGI
+	if e["evidence.code.code"] == "DOA": e["evidence.code.code"] = "TAS"
+	##
+	pmid = e["evidence.publications.pubMedId"]
+	mgiid = e["evidence.publications.mgiId"]
+	ref2codes.setdefault((mgiid,pmid), set()).add(e["evidence.code.code"])
+    a["invevidence"] = []
     for (k,es) in ref2codes.items():
         (mgiId, pubMedId) = k
         p = { "modPublicationId" : mgiId }
         if pubMedId: p["pubMedId"] = "PMID:" + pubMedId
-        a.invevidence.append({ "publication" : p, "evidenceCodes" : list(es) })
+        a["invevidence"].append({ "publication" : p, "evidenceCodes" : list(es) })
     #
     # object relation for genes and alleles
     if kind == "SequenceFeature":
         # Record for later use
-        gene2term.setdefault(a.subject.primaryIdentifier,set()).add(a.ontologyTerm.identifier)
+        gene2term.setdefault(a["subject.primaryIdentifier"], set()).add(a["ontologyTerm.identifier"])
         #
-        a.objectName = a.subject.symbol
-        a.objectRelation = {
+        a["objectName"] = a["subject.symbol"]
+        a["objectRelation"] = {
             "objectType" : "gene",
             "associationType" : "is_implicated_in"
         }
         setAnnotationDate(a, kind)
-        for e in a.evidence:
-            for ba in e.baseAnnotations:
-                # record for later use: which genotypes roll up to this gene
-                geno2genes.setdefault(ba.subject.primaryIdentifier, set()).add(a.subject.primaryIdentifier)
+        for ba in a["baseAnnots"]:
+	    # record for later use: which genotypes roll up to this gene
+	    geno2genes.setdefault(ba["baseAnnotations.subject.primaryIdentifier"], set()).add(a["subject.primaryIdentifier"])
     elif kind == "Allele":
         # FIXME FIXME FIXME
         # Rolled up allele-disease/pheno annotations have never been implemented in MGI. The rules implemented for mousmine are
@@ -155,21 +216,21 @@ def applyConversions(a, kind):
         # The ultimate solution is to compute the rolled up annotations in MGI (as with gene-disease/pheno annotations) and simply
         # load them into MouseMine. There is a TR for this. When that TR is complete, the following can go away...
         # 
-        if not a.ontologyTerm.identifier in gene2term.get(a.subject.feature.primaryIdentifier, []):
+        if not a["ontologyTerm.identifier"] in gene2term.get(a["subject.feature.primaryIdentifier"], []):
             return None
-        a.objectName = a.subject.symbol
-        a.objectRelation = {
+        a["objectName"] = a["subject.symbol"]
+        a["objectRelation"] = {
             "objectType" : "allele",
             "associationType" : "is_implicated_in"
         }
         setAnnotationDate(a, kind)
     else: # kind == "Genotype"
-        a.objectName = a.subject.name
-        a.objectRelation = {
+        a["objectName"] = a["subject.name"]
+        a["objectRelation"] = {
             "objectType" : "genotype",
             "associationType" : "is_model_of",
             # The following line is the reason genes-disease annotation must be processed first...
-            "inferredGeneAssociation": list(geno2genes.get(a.subject.primaryIdentifier,[]))
+            "inferredGeneAssociation": list(geno2genes.get(a["subject.primaryIdentifier"],[]))
         }
         setAnnotationDate(a, kind)
     return a
@@ -178,16 +239,16 @@ def applyConversions(a, kind):
 # This is the min annotation date from associated base (genotype) evidence recs
 def setAnnotationDate(a, kind):
     d = None
-    for e in a.evidence:
-        if kind == "Genotype" or kind == "Allele":  # FIXME: allele should have base annots
-            if d is None or e.annotationDate < d:
-                d = e.annotationDate
-        else:
-            for ba in e.baseAnnotations:
-                for be in ba.evidence:
-                  if d is None or be.annotationDate < d:
-                      d = be.annotationDate
-    a.annotationDate = getTimeStamp(d)
+    if kind == "Genotype" or kind == "Allele":  # FIXME: allele should have base annots
+	for e in a["evidence"]:
+            if d is None or e["evidence.annotationDate"] < d:
+                d = e["evidence.annotationDate"]
+    else:
+	for ba in a["baseAnnots"]:
+	    bd = ba["baseAnnotations.evidence.annotationDate"]
+	    if d is None or bd < d:
+	        d = bd
+    a["annotationDate"] = getTimeStamp(d)
 
 ########
 # Returns a JSON object for one annotation formatted according to the AGR disease or pheno annotation spec.
@@ -199,29 +260,29 @@ def formatDafJsonRecord (annot, kind):
     if kind == "disease":
         return stripNulls({
             #'taxonId':                      MOUSETAXONID,
-            'objectId':                     annot.subject.primaryIdentifier,
-            'objectName':                   annot.objectName,
-            'objectRelation':               annot.objectRelation,
+            'objectId':                     annot["subject.primaryIdentifier"],
+            'objectName':                   annot["objectName"],
+            'objectRelation':               annot["objectRelation"],
             #'experimentalConditions':      [],
-            'qualifier':                    annot.qualifier,
-            'DOid':                         annot.ontologyTerm.identifier,
+            'qualifier':                    annot["qualifier"],
+            'DOid':                         annot["ontologyTerm.identifier"],
             #'with':                        [],
             #'modifier':                    None,
-            'evidence':                     annot.agrevidence,
+            'evidence':                     annot["agrevidence"],
             #'geneticSex':                  '',
-            'dateAssigned':                 annot.annotationDate,
+            'dateAssigned':                 annot["annotationDate"],
             'dataProvider':                 [ buildMgiDataProviderObject() ],
         })
     else:
         return stripNulls({
-            'objectId':                     annot.subject.primaryIdentifier,
-            'phenotypeTermIdentifiers':     [{ "termId" : annot.ontologyTerm.identifier, 'termOrder' : 1 }],
-            'phenotypeStatement':           annot.ontologyTerm.name,
+            'objectId':                     annot["subject.primaryIdentifier"],
+            'phenotypeTermIdentifiers':     [{ "termId" : annot["ontologyTerm.identifier"], 'termOrder' : 1 }],
+            'phenotypeStatement':           annot["ontologyTerm.name"],
 	    'evidence': {
-		'modPublicationId':         annot.agrevidence['publication'].get('modPublicationId', None),
-		'pubMedId':                 annot.agrevidence['publication'].get('pubMedId', None),
+		'modPublicationId':         annot["agrevidence"]['publication'].get('modPublicationId', None),
+		'pubMedId':                 annot["agrevidence"]['publication'].get('pubMedId', None),
 	    },
-            'dateAssigned':                 annot.annotationDate,
+            'dateAssigned':                 annot["annotationDate"],
             })
 
 #####
@@ -251,7 +312,7 @@ def getArgs():
 #####
 def main():
     args = getArgs()
-    service = Service(MOUSEMINEURL)
+    service = MOUSEMINE
     mdo = buildMetaObject(service)
     print '{"metaData": %s,' % json.dumps(mdo) 
     print ' "data"    : ['
@@ -262,13 +323,13 @@ def main():
         alleleAnnots = annotations(service, "DOTerm", "Allele", args.ids)
         genotypeAnnots = annotations(service, "DOTerm", "Genotype", args.ids)
         #
-        for i,ga in enumerate(itertools.chain(geneAnnots, alleleAnnots, genotypeAnnots)):
+        for i,ga in enumerate(chain(geneAnnots, alleleAnnots, genotypeAnnots)):
             print "," if i>0 else "", json.dumps(ga)
     if args.doPhenotypes:
         geneAnnots = annotations(service, "MPTerm", "SequenceFeature", args.ids)
         alleleAnnots = annotations(service, "MPTerm", "Allele", args.ids)
         #
-        for i,ga in enumerate(itertools.chain(geneAnnots, alleleAnnots)):
+        for i,ga in enumerate(chain(geneAnnots, alleleAnnots)):
             print "," if i>0 else "", json.dumps(ga)
 
     print "]}"

@@ -21,14 +21,13 @@ import types
 import argparse
 
 # nonstandard dependencies
-from AGRlib import getConfig, stripNulls, buildMetaObject
-from intermine.webservice import Service
+from AGRlib import getConfig, stripNulls, buildMetaObject, makeOneOfConstraint, doQuery
 
 #-----------------------------------
 # load config settings
 cp = getConfig()
 
-MOUSEMINEURL  = cp.get("DEFAULT","MOUSEMINEURL")
+MOUSEMINE     = cp.get("DEFAULT","MOUSEMINEURL")
 taxon         = cp.get("DEFAULT","TAXONID")
 GLOBALTAXONID = cp.get("DEFAULT","GLOBALTAXONID")
 GENELITURL    = cp.get("DEFAULT","GENELITURL")
@@ -44,34 +43,56 @@ for n in cp.options("dataProviders"):
     dataProviders[n] = cp.get("dataProviders", n)
 
 #-----------------------------------
-# MouseMine connection
-
-mousemine = Service(MOUSEMINEURL)
-
-#-----------------------------------
 # Constructs and returns the core of the query, suitable for any SequenceFeature subclass.
 #
-def buildAlleleQuery(service,ids):
-    query = service.new_query("Allele")
-    query.add_constraint("feature", "Gene")
-    query.add_view("symbol", "name", "feature.primaryIdentifier", "synonyms.value")
-    query.add_constraint("organism.taxonId", "=", "10090", code = "A")
-    query.add_constraint("alleleType", "NONE OF", ["QTL", "Transgenic"], code = "B")
-    query.add_constraint("alleleType", "IS NULL", code = "E")
-    query.add_constraint("isWildType", "=", "false", code = "C")
-    query.add_constraint("ontologyAnnotations.ontologyTerm.id", "IS NOT NULL", code = "D")
-    #
-    lexp = "A and (B or E) and C and D"
-    if len(ids):
-	query.add_constraint("primaryIdentifier", "ONE OF", ids, code = "F")
-        lexp += " and F"
-    query.set_logic(lexp)
-    #
-    query.outerjoin("synonyms")
-    #
-    query.add_sort_order("symbol", "ASC")
-    #
-    return query
+def buildAlleleQuery(url,ids):
+    qopts = {
+      'xtraConstraint': makeOneOfConstraint('Allele.feature.primaryIdentifier', ids)
+    }
+    aid2syns = {}
+    qsynonyms = '''<query
+      model="genomic"
+      view="
+      Allele.primaryIdentifier
+      Allele.synonyms.value
+      "
+      constraintLogic="A and (B or E) and C and D"
+      sortOrder="Allele.primaryIdentifier asc"
+      >
+      <constraint code="A" path="Allele.organism.taxonId" op="=" value="10090" />
+      <constraint code="B" path="Allele.alleleType" op="NONE OF"><value>QTL</value><value>Transgenic</value></constraint>
+      <constraint code="E" path="Allele.alleleType" op="IS NULL" />
+      <constraint code="C" path="Allele.isWildType" op="=" value="false" />
+      <constraint code="D" path="Allele.ontologyAnnotations.ontologyTerm.id" op="IS NOT NULL" />
+      %(xtraConstraint)s
+      </query>
+    ''' % qopts
+    for r in doQuery(qsynonyms, url):
+      aid2syns.setdefault(r['primaryIdentifier'], set()).add(r['synonyms.value'])
+
+    qalleles = '''<query
+      model="genomic"
+      view="
+      Allele.primaryIdentifier
+      Allele.symbol
+      Allele.name
+      Allele.feature.primaryIdentifier
+      "
+      constraintLogic="A and (B or E) and C and D"
+      sortOrder="Allele.primaryIdentifier asc"
+      >
+      <constraint code="A" path="Allele.organism.taxonId" op="=" value="10090" />
+      <constraint code="B" path="Allele.alleleType" op="NONE OF"><value>QTL</value><value>Transgenic</value></constraint>
+      <constraint code="E" path="Allele.alleleType" op="IS NULL" />
+      <constraint code="C" path="Allele.isWildType" op="=" value="false" />
+      <constraint code="D" path="Allele.ontologyAnnotations.ontologyTerm.id" op="IS NOT NULL" />
+      %(xtraConstraint)s
+      </query>
+    ''' % qopts
+    
+    for r in doQuery(qalleles, url):
+      r['synonyms'] = list(aid2syns.get(r['primaryIdentifier'],[]))
+      yield r
 
 #
 sup_re = re.compile(r'([<>])')
@@ -87,7 +108,7 @@ def insertSups (s) :
 
 #
 def formatXrefs(obj):
-    return [{"id":obj.primaryIdentifier, "pages":["allele"]}]
+    return [{"id":obj["primaryIdentifier"], "pages":["allele"]}]
 
 # Here is the magic by which an object returned by the query is converted to an object
 # conforming to the spec.
@@ -99,20 +120,20 @@ def getJsonObj(obj):
   # symbol and name are both being included and need to be screen out.
   # Note that in mousemine, allele.name includes the gene's name followed by a semicolon followed
   # by the allele's name.
-  nn = obj.name.rsplit(';')[-1].strip()
+  nn = obj["name"].rsplit(';')[-1].strip()
   syns = set()
-  for s in obj.synonyms:
-      if s.value != obj.symbol and s.value != nn:
-          syns.add(s.value)
+  for s in obj["synonyms"]:
+      if s != obj["symbol"] and s != nn:
+          syns.add(s)
   syns = map(insertSups, list(syns))
   syns.sort()
   ###
   return stripNulls({
-    "primaryId"		: obj.primaryIdentifier,
-    "symbol"		: insertSups(obj.symbol),
-    "symbolText"	: obj.symbol,
+    "primaryId"		: obj["primaryIdentifier"],
+    "symbol"		: insertSups(obj["symbol"]),
+    "symbolText"	: obj["symbol"],
     "taxonId"           : "NCBITaxon:10090",
-    "gene"	        : obj.feature.primaryIdentifier,
+    "gene"	        : obj["feature.primaryIdentifier"],
     "synonyms"          : syns,
     "secondaryIds"      : [],
     "crossReferences"   : formatXrefs(obj)
@@ -145,13 +166,14 @@ def main():
   args = parseCmdLine()
   ids = args.identifiers
   #
-  query = buildAlleleQuery(mousemine, ids)
-  jobj = {
-    "metaData" : buildMetaObject(mousemine),
-    "data" : [ getJsonObj(x) for x in query ]
-  }
-  print json.dumps(jobj, sort_keys=True, indent=2, separators=(',', ': ')),
-
+  query = buildAlleleQuery(MOUSEMINE, ids)
+  print '{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(MOUSEMINE), indent=2)
+  first = True
+  for a in query:
+    if not first: print ",",
+    print json.dumps(getJsonObj(a), indent=2)
+    first=False
+  print "]}"
 
 #
 main()
