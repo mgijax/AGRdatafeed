@@ -1,5 +1,30 @@
 #!/bin/bash
 
+function usage {
+  echo "
+Usage: $0 -R schema_release -C dump_count [-D output_directory][-g][-a][-e][-p][-d][-f]
+Generates files for upload to the Alliance. Typical invocation:
+	$0 -R 1.0.0.7 -C 3 -D .
+This will do the same thing but only dump the phenotype and allele info files:
+	$0 -R 1.0.0.7 -C 3 -D . -p -a
+Options:
+-h	Print this message and exit.
+-R	Specifies the alliance schema release number, eg, 1.0.0.7. Required.
+-C	Specifies the update count for this schema version (1, 2, 3, ...). Required.
+-D	Specifies the parent directory where the output directory will be created.
+	Default = current working directory.
+
+Specify any combination of the following options to run just those pieces.
+If none are specified, ALL are run.
+-g	Dump the basic gene info file.
+-a	Dump the allele info file.
+-e	Dump the wildtype expression data file.
+-p	Dump the phenotype annotations file.
+-d	Dump the disease annotations file.
+-f	Dump the GFF3 gene models file.
+"
+}
+
 OUTPUT_DIR="."
 SCHEMA_RELEASE=""
 RELEASE_COUNT=""
@@ -14,6 +39,10 @@ DO_GFF=""
 until [ -z "$1" ] 
 do
     case "$1" in
+    -h)
+        usage
+	exit 0
+	;;
     -D) 
 	shift
         OUTPUT_DIR="$1"
@@ -52,6 +81,7 @@ do
         ;; 
     *)  
         echo "Unrecognized option:" $1
+	usage
         exit -1
     esac
     shift
@@ -69,8 +99,14 @@ if [[ ! ${RELEASE_COUNT} ]] ; then
   exit -1
 fi
 
+# ---------------------------------------
+#
 ODIR="${OUTPUT_DIR}/MGI_${SCHEMA_RELEASE}_${RELEASE_COUNT}"
 ROOT="${ODIR}/MGI_${SCHEMA_RELEASE}"
+
+# ---------------------------------------
+#
+mkdir -p ${ODIR}
 
 # ---------------------------------------
 # BGI
