@@ -154,7 +154,6 @@ def formatGenomeLocation(chrom, loc):
 	}]
 
 def getJsonObj(obj):
-  try:
       return stripNulls({
 	"primaryId"		: obj["primaryIdentifier"],
 	"symbol"		: obj["symbol"],
@@ -167,11 +166,6 @@ def getJsonObj(obj):
 	"crossReferences"	: formatXrefs(obj),
 	"genomeLocations"	: formatGenomeLocation(obj.get('chromosome.primaryIdentifier', None), obj.get('location', [None])[0])
       })
-  except:
-    print "ERROR"
-    print obj
-    sys.exit(0)
-
 #
 def parseCmdLine():
     parser = argparse.ArgumentParser(description='Dumps basic gene information to a JSON file.')
