@@ -154,18 +154,22 @@ def formatGenomeLocation(chrom, loc):
 	}]
 
 def getJsonObj(obj):
-      return stripNulls({
-	"primaryId"		: obj["primaryIdentifier"],
-	"symbol"		: obj["symbol"],
-	"name"		: obj["name"],
-	"geneSynopsis"	: obj["description"],
-	"soTermId"		: obj["sequenceOntologyTerm.identifier"],
-	"taxonId"		: "10090",
-	"synonyms"		: [ s for s in obj["synonyms"] if not isSecondaryId(s) and s != obj["symbol"] and s != obj["name"] ],
-	"secondaryIds"	: [ formatSecondary(s) for s in obj["synonyms"] if isSecondaryId(s) ],
-	"crossReferences"	: formatXrefs(obj),
-	"genomeLocations"	: formatGenomeLocation(obj.get('chromosome.primaryIdentifier', None), obj.get('location', [None])[0])
-      })
+      try:
+	  return stripNulls({
+	    "primaryId"		: obj["primaryIdentifier"],
+	    "symbol"		: obj["symbol"],
+	    "name"		: obj["name"],
+	    "geneSynopsis"	: obj["description"],
+	    "soTermId"		: obj["sequenceOntologyTerm.identifier"],
+	    "taxonId"		: GLOBALTAXONID,
+	    "synonyms"		: [ s for s in obj["synonyms"] if not isSecondaryId(s) and s != obj["symbol"] and s != obj["name"] ],
+	    "secondaryIds"	: [ formatSecondary(s) for s in obj["synonyms"] if isSecondaryId(s) ],
+	    "crossReferences"	: formatXrefs(obj),
+	    "genomeLocations"	: formatGenomeLocation(obj.get('chromosome.primaryIdentifier', None), obj.get('location', [None])[0])
+	  })
+      except:
+          sys.stderr.write('ERROR in getJsonObj. obj=' + str(obj) + '\n')
+	  sys.exit(1)
 #
 def parseCmdLine():
     parser = argparse.ArgumentParser(description='Dumps basic gene information to a JSON file.')
