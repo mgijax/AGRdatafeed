@@ -136,22 +136,6 @@ def annotations(url, okind, skind, ids = None):
 	      rr["agrevidence"] = e
 	      yield formatDafJsonRecord(rr, "disease" if okind == "DOTerm" else "phenotype")
 
-def xnnotations(service, okind, skind, ids = None):
-      if skind == "SequenceFeature": # FIXME: Alleles should also have baseAnnotations. 
-          query.add_constraint("evidence.baseAnnotations.subject", "Genotype")
-          query.add_view(
-            "evidence.baseAnnotations.subject.primaryIdentifier",
-            "evidence.baseAnnotations.evidence.annotationDate"
-          )
-          query.outerjoin("evidence.baseAnnotations")
-      #
-      for a in query:
-          if not applyConversions(a, skind):
-              continue
-          for e in a.invevidence:
-            a.agrevidence = e
-            yield formatDafJsonRecord(a, "disease" if okind == "DOTerm" else "phenotype" )
-
 ########
 # Applies various transformations to a 'raw' annotation returned from the db to prepare it
 # for export to AGR. Example: AGR dates must be in rfc3339 format. See comments for specific 
@@ -239,15 +223,13 @@ def applyConversions(a, kind):
 # This is the min annotation date from associated base (genotype) evidence recs
 def setAnnotationDate(a, kind):
     d = None
-    if kind == "Genotype" or kind == "Allele":  # FIXME: allele should have base annots
-	for e in a["evidence"]:
-            if d is None or e["evidence.annotationDate"] < d:
-                d = e["evidence.annotationDate"]
-    else:
-	for ba in a["baseAnnots"]:
-	    bd = ba["baseAnnotations.evidence.annotationDate"]
-	    if d is None or bd < d:
-	        d = bd
+    for e in a["evidence"]:
+	if d is None or e["evidence.annotationDate"] < d:
+	    d = e["evidence.annotationDate"]
+    for ba in a.get("baseAnnots", []):
+	bd = ba["baseAnnotations.evidence.annotationDate"]
+	if d is None or bd < d:
+	    d = bd
     a["annotationDate"] = getTimeStamp(d)
 
 ########
