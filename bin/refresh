@@ -1,14 +1,31 @@
 #!/bin/bash
 
+# ---------------------
+# Initialize vars
+LOGFILE=""
+OUTPUT_DIR="."
+SCHEMA_RELEASE=""
+RELEASE_COUNT=""
+DO_ALL="true"
+VALIDATOR_DIR=""
+DO_GENERATE=""
+DO_VALIDATE=""
+DO_REPORT=""
+DO_UPLOAD=""
+TOKENFILE=""
+NO_RUN=""
+
+# ---------------------
 function usage {
   logit "
-Usage: $0 -s schema_release -c dump_count [-d output_directory][-p gaepdf][-g][-v dir][-r]
+Usage: $0 -s schema_release -c dump_count [-d output_directory][-p gaepdf][-g][-v dir][-r][-u file]
 Generates files for upload to the Alliance. Typical invocation:
-	$0 -s 1.0.0.7 -c 3 -d . -g -v /home/jer/work/agr/datafeed/agr_schemas
+	$0 -s 1.0.0.7 -c 3 -d . -g -v /home/jer/work/agr/datafeed/agr_schemas -r
 This will do the same thing but only dump the phenotype and allele info files:
 	$0 -s 1.0.0.7 -c 3 -d . -g -v /home/jer/work/agr/datafeed/agr_schemas -p p,a
 Options:
 -h	Print this message and exit.
+-l file Specifies a log file. By default, log messages are sent to stdout.
 -s ver	Specifies the alliance schema release number, eg, 1.0.0.7. Required.
 -c n	Specifies the update count for this schema version (1, 2, 3, ...). Required.
 -d dir	Specifies the parent directory where the output directory will be created.
@@ -20,12 +37,17 @@ Options:
 	p	Phenotype annotations
 	d	Disease annotations
 	f	GFF3 gene models
--N	No execute. Skips actually running commands; just prints what it would do.
+	If no -p option is provides, all parts are run (ie, it's the same as specifying -p g,a,e,p,d,f).
 
 You need to specify at least one of the following options to actually do anything:
 -g      Generate data files specified in -p option.
 -v dir	Validate data files specified in -p option. Argument = directory where validator is installed.
--r      Report stats on files specified in -p option..
+-r      Report stats on files specified in -p option.
+-u file Upload files specified in -p option to the Alliance submission endpoint. 
+	Argument is the file containing the access token.
+
+Debugging:
+-N	No execute. Skips actually running commands; just prints what it would do.
 "
 }
 
@@ -33,7 +55,11 @@ You need to specify at least one of the following options to actually do anythin
 # Echos its arguments to the log file. Prepends a datetime stamp.
 #
 function logit {
-  echo `date` "$*" 
+  if [[ ${LOGFILE} ]] ; then
+      echo `date` "$*" >> ${{LOGFILE}
+  else
+      echo `date` "$*" 
+  fi
 }
 
 # ---------------------
@@ -61,17 +87,28 @@ function checkExit {
 }
 
 # ---------------------------------------
+function setFile {
+  ftype="$1"
+  if [[ ${ftype} == "GFF" ]] ; then
+      FILE="${ROOT}_${ftype}.gff3"
+  else
+      FILE="${ROOT}_${ftype}.json"
+  fi
+}
+
+# ---------------------------------------
 function generate {
   ftype="$1"
   script="$2"
-  FILE="${ROOT}_${ftype}.json"
+  setFile ${ftype}
   logit "Generating ${ftype} file: ${FILE}"
   if [[ ${NO_RUN} ]] ; then
     return
   fi
   if [[ ${ftype} == "GFF" ]] ; then
       if [[ ${DO_GENERATE} ]] ; then
-	  ${script} > ${FILE}
+	  url=${script}
+	  curl ${url} | gunzip > ${FILE}
       fi
   else
       if [[ ${DO_GENERATE} ]] ; then
@@ -89,7 +126,7 @@ function generate {
 function validate {
   ftype=$1
   vschema=$2
-  FILE="${ROOT}_${ftype}.json"
+  setFile ${ftype}
   if [[ ${ftype} == "GFF" ]] ; then
     return
   fi
@@ -100,12 +137,49 @@ function validate {
   python ${VALIDATOR_DIR}/agr_validate.py -s ${VALIDATOR_DIR}/${vschema} -d ${FILE}
   checkExit 
 }
+# ---------------------
+# Report stats
+function report {
+  ftype=$1
+  pattern=$2
+  setFile ${ftype}
+  logit "Reporting stats on file ${FILE} ..."
+  if [[ ${NO_RUN} ]] ; then
+    return
+  fi
+  bytes=`cat ${FILE} | wc -c`
+  logit "${bytes} bytes"
+  if [[ ${pattern} ]] ; then
+      count=`grep ${pattern} ${FILE} | wc -l`
+      logit "${count} records"
+  fi
+}
+# ---------------------
+# See: https://github.com/alliance-genome/agr_java_software/blob/develop/agr_api/Submission_README.md
+function upload {
+  ftype=$1
+  aftype=$2
+  setFile ${ftype}
+  logit "Uploading file to AGR: ${FILE} ..."
+  token=`cat ${TOKENFILE}`
+  if [[ ${NO_RUN} ]] ; then
+    return
+  fi
+  curl \
+      -H "api_access_token: ${token}" \
+      -X POST "https://www.alliancegenome.org/api/data/submit" \
+      -F "${SCHEMA_RELEASE}_${aftype}_10090=@${FILE}"
+  checkExit
+}
+
 # ---------------------------------------
 function doPart {
   part="$1"
   ftype="$2"
   script="$3"
   vschema="$4"
+  grepfor="$5"
+  allianceftype="$6"
   if [[ ${DO_ALL} || " ${PARTS[*]} " == *" ${part} "* ]]; then
       if [[ ${DO_GENERATE} ]] ; then
 	  generate "${ftype}" "${script}"
@@ -113,100 +187,106 @@ function doPart {
       if [[ ${DO_VALIDATE} ]] ; then
 	  validate "${ftype}" "${vschema}"
       fi
+      if [[ ${DO_REPORT} ]] ; then
+	  report "${ftype}" "${grepfor}"
+      fi
+      if [[ ${DO_UPLOAD} ]] ; then
+	  upload "${ftype}" "${allianceftype}"
+      fi
   else
       logit "Skipping ${ftype}."
   fi
 }
 
-# ---------------------
-# Initialize vars
-OUTPUT_DIR="."
-SCHEMA_RELEASE=""
-RELEASE_COUNT=""
-DO_ALL="true"
-VALIDATOR_DIR=""
-DO_GENERATE=""
-DO_VALIDATE=""
-DO_REPORT=""
-NO_RUN=""
-
-# ---------------------
-# Process command line args
-until [ -z "$1" ] 
-do
-    case "$1" in
-    -h)
-        usage
-	exit 0
-	;;
-    -g)
-        DO_GENERATE="true"
-	;;
-    -v) 
+function parseCommandLine {
+    # ---------------------
+    # Process command line args
+    until [ -z "$1" ] 
+    do
+	case "$1" in
+	-h)
+	    usage
+	    exit 0
+	    ;;
+	-g)
+	    DO_GENERATE="true"
+	    ;;
+	-v) 
+	    shift
+	    VALIDATOR_DIR="$1"
+	    DO_VALIDATE="true"
+	    ;;  
+	-u) 
+	    shift
+	    TOKENFILE="$1"
+	    DO_UPLOAD="true"
+	    ;;  
+	-r)
+	    DO_REPORT="true"
+	    ;;
+	-p)
+	    shift
+	    PARTS=(${1//,/ })
+	    DO_ALL=""
+	    ;;
+	-d) 
+	    shift
+	    OUTPUT_DIR="$1"
+	    ;;  
+	-s) 
+	    shift
+	    SCHEMA_RELEASE="$1"
+	    ;;  
+	-c) 
+	    shift
+	    RELEASE_COUNT="$1"
+	    ;;  
+	-N)
+	    NO_RUN="true"
+	    ;;
+	*)  
+	    usage
+	    die "Unrecognized option:" $1
+	esac
 	shift
-        VALIDATOR_DIR="$1"
-	DO_VALIDATE="true"
-        ;;  
-    -r)
-        DO_REPORT="true"
-	;;
-    -p)
-        shift
-	PARTS=(${1//,/ })
-	DO_ALL=""
-	;;
-    -d) 
-	shift
-        OUTPUT_DIR="$1"
-        ;;  
-    -s) 
-	shift
-        SCHEMA_RELEASE="$1"
-        ;;  
-    -c) 
-	shift
-        RELEASE_COUNT="$1"
-        ;;  
-    -N)
-        NO_RUN="true"
-	;;
-    *)  
-	usage
-        die "Unrecognized option:" $1
-    esac
-    shift
-done
+    done
+    # ---------------------------------------
+    # Check parameters
+    if [[ ! ${SCHEMA_RELEASE} ]] ; then
+      die "Please specify a schema version."
+    fi
 
-# ---------------------------------------
-# Check parameters
-if [[ ! ${SCHEMA_RELEASE} ]] ; then
-  die "Please specify a schema version."
-fi
+    if [[ ! ${RELEASE_COUNT} ]] ; then
+      die "Please specify a release count."
+    fi
+}
 
-if [[ ! ${RELEASE_COUNT} ]] ; then
-  die "Please specify a release count."
-fi
 
-# ---------------------------------------
-#
-ODIR="${OUTPUT_DIR}/MGI_${SCHEMA_RELEASE}_${RELEASE_COUNT}"
-ROOT="${ODIR}/MGI_${SCHEMA_RELEASE}"
+function main {
+    #
+    parseCommandLine $*
+    #
+    ODIR="${OUTPUT_DIR}/MGI_${SCHEMA_RELEASE}_${RELEASE_COUNT}"
+    ROOT="${ODIR}/MGI_${SCHEMA_RELEASE}"
 
-# ---------------------------------------
-logit
-logit "This is the Alliance data dumper. Starting run..."
+    # ---------------------------------------
+    logit
+    logit "This is the Alliance data dumper. Starting run..."
 
-# ---------------------------------------
-#
-logit "mkdir -p ${ODIR}"
-mkdir -p ${ODIR}
-checkExit
+    # ---------------------------------------
+    #
+    logit "mkdir -p ${ODIR}"
+    mkdir -p ${ODIR}
+    checkExit
 
-doPart "g" "BGI" "basicGeneInfo.py" "gene/geneMetaData.json"
-doPart "a" "allele" "alleleInfo.py" "allele/alleleMetaData.json"
-doPart "e" "expression" "expression.py" "expression/wildtypeExpressionMetaDataDefinition.json" 
-doPart "p" "phenotype" "diseasePheno.py -p" "phenotype/phenotypeMetaDataDefinition.json"
-doPart "d" "disease" "diseasePheno.py -d" "disease/diseaseMetaDataDefinition.json" 
-doPart "f" "GFF" "curl http://www.informatics.jax.org/downloads/mgigff3/MGI.agr.gff3.gz | gunzip"
+    doPart "g" "BGI" "basicGeneInfo.py" "gene/geneMetaData.json" '"primaryId"' "BGI"
+    doPart "a" "allele" "alleleInfo.py" "allele/alleleMetaData.json" '"primaryId"' "ALLELE"
+    doPart "e" "expression" "expression.py" "expression/wildtypeExpressionMetaDataDefinition.json" '"geneId"' "EXPRESSION"
+    doPart "p" "phenotype" "diseasePheno.py -p" "phenotype/phenotypeMetaDataDefinition.json" '"objectId"' "PHENOTYPE"
+    doPart "d" "disease" "diseasePheno.py -d" "disease/diseaseMetaDataDefinition.json" '"DOid"' "DAF"
+    doPart "f" "GFF" "http://www.informatics.jax.org/downloads/mgigff3/MGI.agr.gff3.gz" "" "curie=" "GFF"
 
-logit "Finished."
+    logit "Finished."
+}
+
+main $*
