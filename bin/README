@@ -1,0 +1,35 @@
+# Run everything. 
+./refresh \
+    -d /home/jer/work/agr/dqm \
+    -s 1.0.0.7 \
+    -c 3 \
+    -g \
+    -v /home/jer/work/agr/datafeed/agr_schemas \
+    -r \
+    -u ~/.DQM_UPLOAD_TOKEN
+#
+# Run just allele, genes, and GFF parts. 
+./refresh \
+    -d /home/jer/work/agr/dqm \
+    -s 1.0.0.7 \
+    -c 3 \
+    -g \
+    -v /home/jer/work/agr/datafeed/agr_schemas \
+    -r \
+    -u ~/.DQM_UPLOAD_TOKEN \
+    -p a,g,f
+# Report on the BGI file
+./refresh \
+    -d /home/jer/work/agr/dqm \
+    -s 1.0.0.7 \
+    -c 3 \
+    -r \
+    -p g
+# Upload the GFF file
+./refresh \
+    -d /home/jer/work/agr/dqm \
+    -s 1.0.0.7 \
+    -c 3 \
+    -u ~/.DQM_UPLOAD_TOKEN \
+    -p f
+  
