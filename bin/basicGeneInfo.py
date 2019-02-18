@@ -13,27 +13,42 @@
 #	% python basicGeneInfo.py MGI:96449 MGI:96677 MGI:2685845
 # 
 # This script uses MouseMine webservices API.
+# Implementation approach. A fair amount of detail is needed for each gene.
+# In the db, this info requires traversing to subobjects (and beyond).
+# One option is to specify 'jsonobjects' as the return type, and the server
+# will put things together for you in nice object form. My experience is that
+# this breaks the server for very large queries like these.
+#
+# This leads to the approach taken here, which is to break up the query 
+# into simple(r) pieces each of which returns a stream of parts sorted by object id.
+# The streams are exectuted in parallel, then merged based on object id.
+# 
+# Example: for each gene we need its synonyms (among many other parts). These are
+# stored in a separate table, and a given gene can have zero or more synonyms.
+# In the one-giant-query approach, we'd tack on another join. 
+# Because a given gene can have 0 synonyms, the join would have to be outer.
+# In the parallel streams approach, we add another query that returns each synonym with
+# its gene's ID, sorted on that ID. All the other streams are also composed of pieces that
+# returns streams of parts sorted by gene ID.
+# The bottom line is that the server can execute the collection of simple queries much faster and
+# with less memory then the one-giant-query approach.
 #
 # Author: Joel Richardson
 #
-
-# standard libs
 import sys
-import json
-import itertools
-import time
-import types
 import argparse
-
-# nonstandard dependencies
-from AGRlib import getConfig, stripNulls, buildMetaObject
-from intermine.webservice import Service
+import urllib
+import json
+import heapq
+import itertools
+import re
+from AGRlib import getConfig, stripNulls, buildMetaObject, doQuery, makeOneOfConstraint
 
 #-----------------------------------
 # load config settings
 cp = getConfig()
 
-MOUSEMINEURL  = cp.get("DEFAULT","MOUSEMINEURL")
+MOUSEMINE     = cp.get("DEFAULT","MOUSEMINEURL")
 taxon         = cp.get("DEFAULT","TAXONID")
 GLOBALTAXONID = cp.get("DEFAULT","GLOBALTAXONID")
 GENELITURL    = cp.get("DEFAULT","GENELITURL")
@@ -47,90 +62,6 @@ MGD_OLD_PREFIX= cp.get("DEFAULT","MGD_OLD_PREFIX")
 dataProviders	= {}
 for n in cp.options("dataProviders"):
     dataProviders[n] = cp.get("dataProviders", n)
-
-#-----------------------------------
-# MouseMine connection
-
-mousemine = Service(MOUSEMINEURL)
-
-#-----------------------------------
-def buildExpressedGeneQuery(service):
-    query = service.new_query('Gene')
-    query.add_view("primaryIdentifier")
-    query.add_constraint("expression.assayId", "IS NOT NULL", code="A")
-    return query
-
-#-----------------------------------
-# Constructs and returns the core of the query, suitable for any SequenceFeature subclass.
-#
-def buildSequenceFeatureQuery(service, subclassName, ids):
-    query = service.new_query(subclassName)
-    #
-    query.add_view(
-	"primaryIdentifier", "symbol", "name", "description",
-	"sequenceOntologyTerm.identifier", "synonyms.value",
-	"crossReferences.source.name", "crossReferences.identifier",
-	"chromosomeLocation.locatedOn.primaryIdentifier",
-	"chromosomeLocation.start", "chromosomeLocation.end",
-	"chromosomeLocation.strand",
-	"chromosomeLocation.assembly",
-	"chromosome.primaryIdentifier"
-
-    )
-    #
-    query.add_sort_order("primaryIdentifier", "ASC")
-    #
-    query.add_constraint("organism.taxonId", "=", taxon, code = "A")
-    query.add_constraint("dataSets.name", "=", "Mouse Gene Catalog from MGI", code = "B")
-    if len(ids):
-	query.add_constraint("primaryIdentifier", "ONE OF", ids, code = "C")
-    #
-    query.outerjoin("synonyms")
-    query.outerjoin("crossReferences")
-    query.outerjoin("chromosomeLocation")
-    query.outerjoin("chromosome")
-    #
-    return query
-
-# Builds/returns the query for class Gene
-#
-def buildGeneQuery(service, ids):
-    # start w/ the seq feature query, then add Gene-specific parts
-    query = buildSequenceFeatureQuery(service, 'Gene', ids)
-    query.add_view(
-	"proteins.uniprotAccession",
-	"homologues.homologue.primaryIdentifier", "homologues.homologue.symbol",
-	"homologues.homologue.crossReferences.identifier"
-    )
-    query.add_constraint("homologues.dataSets.name", "=", "Mouse/Human Orthologies from MGI", code = "D")
-    query.add_constraint("homologues.homologue.crossReferences.source.name", "=", "MyGene", code = "E")
-    query.add_constraint("sequenceOntologyTerm.identifier", "!=", "SO:0000902", code = "F") # no transgenes
-    query.outerjoin("proteins")
-    query.outerjoin("homologues")
-    return query
-
-# Builds/returns the query for class Pseudogene
-#
-def buildPseudogeneQuery(service, ids):
-    return buildSequenceFeatureQuery(service, "Pseudogene", ids)
-
-#
-# Queries MouseMine for Panther ids, which are attached to Homologue objects.
-# Returns a dict mapping MGI ids to Panther ids.
-def cachePantherIds(service, ids):
-  d = {}
-  query = mousemine.new_query("Gene")
-  query.add_view("primaryIdentifier", "homologues.crossReferences.identifier")
-  query.add_constraint("organism.taxonId", "=", "10090", code = "A")
-  query.add_constraint("homologues.dataSets.name", "=", "Panther data set", code = "B")
-  query.add_constraint("homologues.type", "!=", "paralogue", code="C")
-  if len(ids):
-    query.add_constraint("primaryIdentifier", "ONE OF", ids, code = "D")
-
-  for row in query.rows():
-    d[row["primaryIdentifier"]] = row["homologues.crossReferences.identifier"]
-
-  return d
 
 # In MouseMine, synonyms and secondary ids are lumped together as "synonyms". 
 # This function distinguishes a synonym value as being either a secondary id or not.
@@ -152,12 +83,10 @@ def formatSecondary(identifier):
 # Here we use the same logic to construct a link (or not) for the given mouse gene (obj).
 #
 def formatMyGeneLink(obj):
-    if not hasattr(obj, "homologues") or len(obj.homologues) != 1:
+    mgl = obj.get("myGeneLink", [None])[0]
+    if not mgl:
         return None
-    xrs = obj.homologues[0].homologue.crossReferences
-    if len(xrs) == 0:
-        return None
-    symbol = xrs[0].identifier
+    symbol = mgl['homologues.homologue.crossReferences.identifier']
     # FIXME: Currently, the agr schema for global id's doesn't allow ":" in the suffix part.
     # A few of these wiki links do, so we'll filter them out for now.
     # TODO: Ask DQMs to change the globalId pattern. Then remove this filter.
@@ -172,25 +101,26 @@ def formatMyGeneLink(obj):
 #
 def formatXrefs(obj):
     xrefs = set()
-    for x in obj.crossReferences:
-      dp = dataProviders.get(x.source.name, None)
+    for x in obj.get("xrefs",[]):
+      dp = dataProviders.get(x["crossReferences.source.name"], None)
       if dp:
-        xrefs.add((dp, x.identifier))
-    if hasattr(obj,"proteins"):
-	for x in obj.proteins:
-	    if x.uniprotAccession:
-	        xrefs.add(("UniProtKB", x.uniprotAccession))
-    if hasattr(obj,"pantherId") and obj.pantherId:
-      xrefs.add(("PANTHER", obj.pantherId))
+        xrefs.add((dp, x["crossReferences.identifier"]))
+    for x in obj.get('proteinIds', []):
+	p = x.get('proteins.uniprotAccession','')
+	if p:
+	    xrefs.add(("UniProtKB", p))
+    pid = obj.get('pantherId', [None])[0]
+    if pid:
+      xrefs.add(('PANTHER', pid['homologues.crossReferences.identifier']))
     xrefs = list(xrefs)
     xrefs.sort()
     # new xref format for 1.0.0.0. Includes 2 parts: the id, and a list of page-tags (see resourceDescriptors.yaml)
     xrs = [{"id": x[0]+":"+x[1]} for x in xrefs]
     # add xrefs to MGI pages for this gene
     pgs = ["gene","gene/references"]
-    if obj.primaryIdentifier in expressed:
+    if obj.get('expressed', None):
         pgs.append("gene/expression")
-    xrs.append({"id": obj.primaryIdentifier, "pages":pgs })
+    xrs.append({"id": obj["primaryIdentifier"], "pages":pgs })
     # add xref to MyGene page (if applicable)
     mgl = formatMyGeneLink(obj)
     if mgl: xrs.append(mgl)
@@ -206,41 +136,40 @@ def convertStrand(s):
 # Format the genome location for the obj. The agr standard is to allow multiple
 # locations per object, but we will only have one. Even so, we have to return a list.
 # 
-def formatGenomeLocation(obj):
-    locations = []
-    if obj.chromosomeLocation:
-	loc = obj.chromosomeLocation
-        locations.append({
-	    "assembly"		: loc.assembly,
-	    "chromosome"	: loc.locatedOn.primaryIdentifier,
-	    "startPosition"	: loc.start,
-	    "endPosition"	: loc.end,
-	    "strand"		: convertStrand(loc.strand)
-	})
-    elif obj.chromosome and obj.chromosome.primaryIdentifier != "UN":
-        locations.append({
+def formatGenomeLocation(chrom, loc):
+    if loc:
+        return [{
+	    "assembly"		: loc['chromosomeLocation.assembly'],
+	    "chromosome"	: chrom,
+	    "startPosition"	: int(loc['chromosomeLocation.start']),
+	    "endPosition"	: int(loc['chromosomeLocation.end']),
+	    "strand"		: convertStrand(loc['chromosomeLocation.strand'])
+	}]
+    #elif obj.chromosome and obj.chromosome.primaryIdentifier != "UN":
+    else:
+        if chrom and chrom != 'UN':
+	  return [{
 	    "assembly"		: '',
-	    "chromosome"	: obj.chromosome.primaryIdentifier,
-	})
-    return locations
+	    "chromosome"	: chrom
+	}]
 
-# Here is the magic by which an object returned by the query is converted to an object
-# conforming to the spec.
-#
 def getJsonObj(obj):
-  return stripNulls({
-    "primaryId"		: obj.primaryIdentifier,
-    "symbol"		: obj.symbol,
-    "name"		: obj.name,
-    "geneSynopsis"	: obj.description,
-    "soTermId"		: obj.sequenceOntologyTerm.identifier,
-    "taxonId"		: GLOBALTAXONID,
-    "synonyms"		: [ s.value for s in obj.synonyms if not isSecondaryId(s.value) and s.value != obj.symbol and s.value != obj.name ],
-    "secondaryIds"	: [ formatSecondary(s.value) for s in obj.synonyms if isSecondaryId(s.value) ],
-    "crossReferences"	: formatXrefs(obj),
-    "genomeLocations"	: formatGenomeLocation(obj)
-  })
-
+      try:
+	  return stripNulls({
+	    "primaryId"		: obj["primaryIdentifier"],
+	    "symbol"		: obj["symbol"],
+	    "name"		: obj["name"],
+	    "geneSynopsis"	: obj["description"],
+	    "soTermId"		: obj["sequenceOntologyTerm.identifier"],
+	    "taxonId"		: GLOBALTAXONID,
+	    "synonyms"		: [ s for s in obj["synonyms"] if not isSecondaryId(s) and s != obj["symbol"] and s != obj["name"] ],
+	    "secondaryIds"	: [ formatSecondary(s) for s in obj["synonyms"] if isSecondaryId(s) ],
+	    "crossReferences"	: formatXrefs(obj),
+	    "genomeLocations"	: formatGenomeLocation(obj.get('chromosome.primaryIdentifier', None), obj.get('location', [None])[0])
+	  })
+      except:
+          sys.stderr.write('ERROR in getJsonObj. obj=' + str(obj) + '\n')
+	  sys.exit(1)
 #
 def parseCmdLine():
     parser = argparse.ArgumentParser(description='Dumps basic gene information to a JSON file.')
@@ -263,28 +192,185 @@ def parseCmdLine():
       args.identifiers.extend(SAMPLEIDS)
     return args
   
-# Main prog. Build the query, run it, and output 
-def main():
-  args = parseCmdLine()
-  ids = args.identifiers
-  #
-  global expressed
-  expressed = set()
-  for x in buildExpressedGeneQuery(mousemine).rows():
-      expressed.add(x["primaryIdentifier"])
-  #
-  mgi2panther = cachePantherIds(mousemine, ids)
-  def addPantherId(obj):
-    obj.pantherId = mgi2panther.get(obj.primaryIdentifier, None)
-    return obj
-  #
-  query = itertools.chain(buildGeneQuery(mousemine, ids), buildPseudogeneQuery(mousemine, ids))
-  jobj = {
-    "metaData" : buildMetaObject(mousemine),
-    "data" : [ getJsonObj(addPantherId(x)) for x in query ]
-  }
-  print json.dumps(jobj, sort_keys=True, indent=2, separators=(',', ': ')),
-
-
 #
-main()
+def main(args):
+    ##
+    qmods = {
+      'extraConstraint' : makeOneOfConstraint('Gene.primaryIdentifier', args.identifiers),
+    }
+    ##
+    qs = [
+	('gene', mouseGenes),
+	('synonyms', mouseSynonyms),
+	('expressed', mouseExpressedGenes),
+	('location', mouseLocations),
+	('proteinIds', mouseProteinIds),
+	('xrefs', mouseXrefs),
+	('pantherId', mousePantherIds),
+	('myGeneLink', mouseMyGeneLinks),
+    ]
+    qs2 = []
+    for label, q in qs:
+	qiter = doQuery (q % qmods, MOUSEMINE)
+	qiter = itertools.groupby(qiter, lambda x: x['primaryIdentifier'])
+	qiter = itertools.imap(lambda x, y=label: (x[0], y, list(x[1])), qiter)
+	qs2.append(qiter)
+
+    print '{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(MOUSEMINE), indent=2)
+    first=True
+    for x in itertools.groupby(heapq.merge(*qs2), lambda x: x[0]):
+      obj = { 'mgiid' : x[0] }
+      for y in list(x[1]):
+	if y[1] == 'gene':
+	    # copy in all the basic gene attrs (symbol, name, etc)
+	    obj.update(y[2][0])
+	elif y[1] == 'synonyms':
+	    # make a simple list of synonyms
+	    obj['synonyms'] = map(lambda x: x['synonyms.value'], y[2])
+	else:
+	    obj[y[1]] = y[2]
+
+      if not obj.get("primaryIdentifier"):
+        continue
+      if not first: print ",",
+      print json.dumps(getJsonObj(obj), indent=2)
+      first=False
+    print ']\n}'
+
+mouseGenes = '''
+    <query
+      model="genomic"
+      view="
+        Gene.primaryIdentifier
+        Gene.symbol
+        Gene.name
+        Gene.description
+        Gene.sequenceOntologyTerm.identifier
+	Gene.chromosome.primaryIdentifier
+	"
+      sortOrder="Gene.primaryIdentifier asc"
+      >
+      %(extraConstraint)s
+      <constraint path="Gene.organism.taxonId" op="=" value="10090"/>
+      <constraint path="Gene.dataSets.name" op="=" value="Mouse Gene Catalog from MGI"/>
+      <constraint path="Gene.sequenceOntologyTerm.identifier" op="!=" value="SO:0000902"/>
+    </query>
+    '''
+
+mouseSynonyms = '''
+    <query
+      model="genomic"
+      view="
+        Gene.primaryIdentifier
+	Gene.synonyms.value
+	"
+      sortOrder="Gene.primaryIdentifier asc Gene.synonyms.value asc"
+      >
+      %(extraConstraint)s
+      <constraint path="Gene.organism.taxonId" op="=" value="10090"/>
+      <constraint path="Gene.dataSets.name" op="=" value="Mouse Gene Catalog from MGI"/>
+    </query>
+    '''
+
+mouseLocations = '''
+    <query
+      model="genomic"
+      view="
+        Gene.primaryIdentifier
+	Gene.chromosomeLocation.locatedOn.primaryIdentifier
+	Gene.chromosomeLocation.start
+	Gene.chromosomeLocation.end Gene.chromosomeLocation.strand
+	Gene.chromosomeLocation.assembly
+	"
+      sortOrder="Gene.primaryIdentifier asc"
+      >
+      %(extraConstraint)s
+      <constraint path="Gene.organism.taxonId" op="=" value="10090"/>
+      <constraint path="Gene.dataSets.name" op="=" value="Mouse Gene Catalog from MGI"/>
+    </query>
+    '''
+
+mouseProteinIds = '''
+    <query
+      model="genomic"
+      view="
+        Gene.primaryIdentifier
+	Gene.proteins.uniprotAccession
+	"
+      sortOrder="Gene.primaryIdentifier asc Gene.proteins.uniprotAccession asc"
+      >
+      %(extraConstraint)s
+      <constraint path="Gene.organism.taxonId" op="=" value="10090"/>
+      <constraint path="Gene.dataSets.name" op="=" value="Mouse Gene Catalog from MGI"/>
+    </query>
+    '''
+
+mouseExpressedGenes = '''
+    <query
+      model="genomic"
+      view="
+        Gene.primaryIdentifier
+	"
+      sortOrder="Gene.primaryIdentifier asc"
+      >
+      %(extraConstraint)s
+      <constraint path="Gene.organism.taxonId" op="=" value="10090"/>
+      <constraint path="Gene.dataSets.name" op="=" value="Mouse Gene Catalog from MGI"/>
+      <constraint path="Gene.expression" op="IS NOT NULL"/>
+    </query>
+    '''
+
+mouseXrefs = '''
+    <query
+      model="genomic"
+      view="
+        Gene.primaryIdentifier
+	Gene.crossReferences.source.name
+	Gene.crossReferences.identifier
+	"
+      sortOrder="Gene.primaryIdentifier asc"
+      >
+      %(extraConstraint)s
+      <constraint path="Gene.organism.taxonId" op="=" value="10090"/>
+      <constraint path="Gene.dataSets.name" op="=" value="Mouse Gene Catalog from MGI"/>
+    </query>
+    '''
+
+mousePantherIds = '''
+    <query
+      model="genomic"
+      view="
+        Gene.primaryIdentifier
+	Gene.homologues.crossReferences.identifier
+	"
+      sortOrder="Gene.primaryIdentifier asc"
+      >
+      %(extraConstraint)s
+      <constraint path="Gene.organism.taxonId" op="=" value="10090"/>
+      <constraint path="Gene.homologues.dataSets.name" op="=" value="Panther data set"/>
+      <constraint path="Gene.homologues.type" op="!=" value="paralogue"/>
+      <constraint path="Gene.dataSets.name" op="=" value="Mouse Gene Catalog from MGI"/>
+      <constraint path="Gene.homologues.homologue.organism.taxonId" op="=" value="9606"/>
+    </query>
+    '''
+
+mouseMyGeneLinks = '''
+    <query
+      model="genomic"
+      view="
+        Gene.primaryIdentifier
+	Gene.homologues.homologue.primaryIdentifier
+	Gene.homologues.homologue.symbol
+	Gene.homologues.homologue.crossReferences.identifier
+	"
+      sortOrder="Gene.primaryIdentifier asc"
+      >
+      %(extraConstraint)s
+      <constraint path="Gene.organism.taxonId" op="=" value="10090"/>
+      <constraint path="Gene.homologues.dataSets.name" op="=" value="Mouse/Human Orthologies from MGI"/>
+      <constraint path="Gene.homologues.homologue.crossReferences.source.name" code="E" op="=" value="MyGene"/>
+      <constraint path="Gene.dataSets.name" op="=" value="Mouse Gene Catalog from MGI"/>
+    </query>
+    '''
+
+main(parseCmdLine())

@@ -6,6 +6,8 @@ import json
 import re
 import datetime
 import os
+import urllib
+import itertools
 
 
 #
@@ -46,9 +48,37 @@ def buildMgiDataProviderObject () :
 	},
 	"type" : "curated"
     }
+#
+def doInterMineQuery(q, url): 
+    fmt = 'tab'
+    url = '%s/query/results?format=%s&query=%s' % (url,fmt,urllib.quote_plus(q))
+    fd = urllib.urlopen(url)
+    for line in fd: 
+        toks = line[:-1].split('\t')
+        yield toks
+    fd.close()
+
+# Returns the list of view paths from the given query.
+VIEW_re=re.compile(r'view="([^"]*)"')
+def getView (q, stripRoot=True):
+    view = None
+    m = VIEW_re.search(q)
+    if m:
+      view = m.group(1).strip().split()
+      if stripRoot:
+        view = map(lambda v: '.'.join(v.split('.')[1:]), view)
+    return view
+
+# 
+def doQuery(q, url):
+  view = getView(q)
+  def makeObject (row) :
+    return dict(zip(view, map(lambda f: f if f != '""' else None, row)))
+  return itertools.imap(makeObject, doInterMineQuery(q, url))
+
 # Constructs and returns the metaData (header) for the dump file.
 #
-def buildMetaObject(service):
+def buildMetaObject(mouseMineUrl):
     # get current date
     currentDate = getTimeStamp()
 
@@ -56,18 +86,30 @@ def buildMetaObject(service):
     #   of the MGI DataSource obj
     # For example, "Mouse Genome Informatics [MGI 6.07 2017-01-24]"
     release = None
-    query = service.new_query("DataSource")
-    query.add_view("name", "description")
-    query.add_constraint("name", "=", "MGI", code = "B")
-    for r in query:
-      i = r.description.find('[')
-      release = r.description[i:].strip()[1:-1].strip()
+    q = '''<query 
+      model="genomic"
+      view="DataSource.name DataSource.description"
+      >
+      <constraint path="DataSource.name" op="=" value="MGI"/>
+      </query>
+      '''
+    for r in doInterMineQuery(q,mouseMineUrl):
+      i = r[1].find('[')
+      release = r[1][i:].strip()[1:-1].strip()
 
     return {
     "dataProvider" : buildMgiDataProviderObject(),
     "dateProduced" : currentDate,
     "release" : release
     }
+#
+def makeOneOfConstraint(path, vals):
+  cnst = ''
+  if vals:
+    cvals = ''.join(map(lambda i: '<value>%s</value>' % i, vals))
+    cnst = '<constraint path="%s" op="ONE OF">%s</constraint>' % (path,cvals)
+  return cnst
+
 #-----------------------------------
 # RFC 3339 timestamps
 #
