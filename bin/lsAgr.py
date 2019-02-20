@@ -45,13 +45,19 @@ def main():
     fd.close()
     root = ET.fromstring(s)
     for c in root:
+      # quick and dirty conversion to dictionary 
       d = dict([(RE.sub('', x.tag), x.text) for x in c])
-      #
+      # skip anything that's not a file entry
       if not 'ETag' in d:
 	continue
+      # for some reason, the ETag values include the quote characters
       d['ETag'] = d['ETag'].replace('"','')
+      # split the file path into parts
       kparts = d['Key'].split("/")
+      # just grab the yyyy-mm-dd part of the modification date
       mdate = d['LastModified'][:10]
+      #
+      # Apply filters
       #
       if opts.etag and opts.etag != d['ETag']:
 	continue
