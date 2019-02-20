@@ -232,6 +232,10 @@ def setAnnotationDate(a, kind):
 	    d = bd
     a["annotationDate"] = getTimeStamp(d)
 
+#
+def log (s):
+    sys.stderr.write(s + '\n')
+
 ########
 # Returns a JSON object for one annotation formatted according to the AGR disease or pheno annotation spec.
 # Args:
@@ -239,7 +243,8 @@ def setAnnotationDate(a, kind):
 #    kind (string) Either "disease" or "phenotype"
 #
 def formatDafJsonRecord (annot, kind):
-    if kind == "disease":
+    try:
+      if kind == "disease":
         return stripNulls({
             #'taxonId':                      MOUSETAXONID,
             'objectId':                     annot["subject.primaryIdentifier"],
@@ -255,9 +260,9 @@ def formatDafJsonRecord (annot, kind):
             'dateAssigned':                 annot["annotationDate"],
             'dataProvider':                 [ buildMgiDataProviderObject() ],
         })
-    else:
+      else:
 	# guard against data issue: MP record w/o a name. 
-	pstmt = annot.ontologyTerm.name if annot.ontologyTerm.name else '?'
+	pstmt = annot["ontologyTerm.name"] if annot["ontologyTerm.name"] else '?'
         return stripNulls({
             'objectId':                     annot["subject.primaryIdentifier"],
             'phenotypeTermIdentifiers':     [{ "termId" : annot["ontologyTerm.identifier"], 'termOrder' : 1 }],
@@ -268,6 +273,9 @@ def formatDafJsonRecord (annot, kind):
 	    },
             'dateAssigned':                 annot["annotationDate"],
             })
+    except:
+        log('ERROR in annotation record: ' + str(annot))
+	raise
 
 #####
 def getArgs():

@@ -234,7 +234,7 @@ def getExpressionData(url, ids):
 	GXDExpression.feature.primaryIdentifier
 	GXDExpression.stage
 	GXDExpression.structure.identifier
-	GXDExpression.publication.mgiJnum
+	GXDExpression.publication.mgiId
 	GXDExpression.publication.pubMedId"
     sortOrder="GXDExpression.assayId asc GXDExpression.structure.identifier asc GXDExpression.stage asc"
     constraintLogic="A and (B or (C and D)) and E"
@@ -267,28 +267,32 @@ def getExpressionData(url, ids):
 #
 def getJsonObj(obj, structureName, uids):
   mkid = lambda i,p: None if i is None else p+i
-  return stripNulls({
-      'geneId': obj['feature.primaryIdentifier'],
-      'evidence' : {
-          'modPublicationId': obj['publication.mgiId'],
-	  'pubMedId': mkid(obj['publication.pubMedId'], 'PMID:')
-      },
-      'assay': assayType2mmo[obj['assayType']],
-      'dateAssigned' : '2018-07-18T13:27:43-04:00', # FIXME
-      'whereExpressed': {
-	  'anatomicalStructureTermId' : obj['structure.identifier'],
-	  'anatomcialStructureUberonSlimTermIds': map(lambda u: {'uberonTerm':u}, uids),
-	  'whereExpressedStatement' : structureName
-      },  
-      'whenExpressed': {
-	  'stageName': obj['stage'],
-	  'stageUberonSlimTerm': {'uberonTerm':ts2uberon[obj['stage']]}
-      },  
-      'crossReference' : {
-          'id' : obj['assayId'],
-	  'pages' : [ 'gene/expression/annotation/detail' ]
-      }
-  })
+  try:
+      return stripNulls({
+	  'geneId': obj['feature.primaryIdentifier'],
+	  'evidence' : {
+	      'modPublicationId': obj['publication.mgiId'],
+	      'pubMedId': mkid(obj['publication.pubMedId'], 'PMID:')
+	  },
+	  'assay': assayType2mmo[obj['assayType']],
+	  'dateAssigned' : '2018-07-18T13:27:43-04:00', # FIXME
+	  'whereExpressed': {
+	      'anatomicalStructureTermId' : obj['structure.identifier'],
+	      'anatomcialStructureUberonSlimTermIds': map(lambda u: {'uberonTerm':u}, uids),
+	      'whereExpressedStatement' : structureName
+	  },  
+	  'whenExpressed': {
+	      'stageName': obj['stage'],
+	      'stageUberonSlimTerm': {'uberonTerm':ts2uberon[obj['stage']]}
+	  },  
+	  'crossReference' : {
+	      'id' : obj['assayId'],
+	      'pages' : [ 'gene/expression/annotation/detail' ]
+	  }
+      })
+  except:
+    log('ERROR in expression object: ' + str(obj))
+    raise
 
 #
 def parseCmdLine():
