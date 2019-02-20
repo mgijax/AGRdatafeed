@@ -12,7 +12,7 @@ DO_GENERATE=""
 DO_VALIDATE=""
 DO_REPORT=""
 DO_UPLOAD=""
-TOKENFILE=""
+TOKEN_FILE=""
 NO_RUN=""
 
 # ---------------------
@@ -25,6 +25,7 @@ This will do the same thing but only dump the phenotype and allele info files:
 	$0 -s 1.0.0.7 -c 3 -d . -g -v /home/jer/work/agr/datafeed/agr_schemas -p p,a
 Options:
 -h	Print this message and exit.
+-C file	Source the specified config file.
 -l file Specifies a log file. By default, log messages are sent to stdout.
 -s ver	Specifies the alliance schema release number, eg, 1.0.0.7. Required.
 -c n	Specifies the update count for this schema version (1, 2, 3, ...). Required.
@@ -56,7 +57,7 @@ Debugging:
 #
 function logit {
   if [[ ${LOGFILE} ]] ; then
-      echo `date` "$*" >> ${{LOGFILE}
+      echo `date` "$*" >> ${LOGFILE}
   else
       echo `date` "$*" 
   fi
@@ -113,7 +114,7 @@ function generate {
   else
       if [[ ${DO_GENERATE} ]] ; then
 	  python ${script} > ${FILE}
-	  checkExit -w
+	  checkExit
       fi
   fi
 }
@@ -161,7 +162,7 @@ function upload {
   aftype=$2
   setFile ${ftype}
   logit "Uploading file to AGR: ${FILE} ..."
-  token=`cat ${TOKENFILE}`
+  token=`cat ${TOKEN_FILE}`
   if [[ ${NO_RUN} ]] ; then
     return
   fi
@@ -208,6 +209,15 @@ function parseCommandLine {
 	    usage
 	    exit 0
 	    ;;
+	-C)
+	    shift
+	    logit "Sourcing file: $1"
+	    source "$1"
+	    ;;
+	-l)
+	    shift
+	    LOGFILE="$1"
+	    ;;
 	-g)
 	    DO_GENERATE="true"
 	    ;;
@@ -218,7 +228,7 @@ function parseCommandLine {
 	    ;;  
 	-u) 
 	    shift
-	    TOKENFILE="$1"
+	    TOKEN_FILE="$1"
 	    DO_UPLOAD="true"
 	    ;;  
 	-r)
