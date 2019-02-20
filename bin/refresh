@@ -25,10 +25,10 @@ This will do the same thing but only dump the phenotype and allele info files:
 	$0 -s 1.0.0.7 -c 3 -d . -g -v /home/jer/work/agr/datafeed/agr_schemas -p p,a
 Options:
 -h	Print this message and exit.
--C file	Source the specified config file.
+-C file	Sources the specified config file.
 -l file Specifies a log file. By default, log messages are sent to stdout.
 -s ver	Specifies the alliance schema release number, eg, 1.0.0.7. Required.
--c n	Specifies the update count for this schema version (1, 2, 3, ...). Required.
+-c n	Specifies the update count for this schema version (1, 2, 3, ...).  Optional.
 -d dir	Specifies the parent directory where the output directory will be created.
 	Default = current working directory.
 -p pts	Specify which part(s) to run. Argument is a comma-separated list (no spaces) of any of the following:
@@ -45,7 +45,7 @@ You need to specify at least one of the following options to actually do anythin
 -v dir	Validate data files specified in -p option. Argument = directory where validator is installed.
 -r      Report stats on files specified in -p option.
 -u file Upload files specified in -p option to the Alliance submission endpoint. 
-	Argument is the file containing the access token.
+	Argument is the file containing the DQM access token.
 
 Debugging:
 -N	No execute. Skips actually running commands; just prints what it would do.
@@ -265,10 +265,6 @@ function parseCommandLine {
     if [[ ! ${SCHEMA_RELEASE} ]] ; then
       die "Please specify a schema version."
     fi
-
-    if [[ ! ${RELEASE_COUNT} ]] ; then
-      die "Please specify a release count."
-    fi
 }
 
 
@@ -276,7 +272,10 @@ function main {
     #
     parseCommandLine $*
     #
-    ODIR="${OUTPUT_DIR}/MGI_${SCHEMA_RELEASE}_${RELEASE_COUNT}"
+    ODIR="${OUTPUT_DIR}/MGI_${SCHEMA_RELEASE}"
+    if [[ ${RELEASE_COUNT} ]] ; then
+	ODIR="${ODIR}_${RELEASE_COUNT}"
+    fi
     ROOT="${ODIR}/MGI_${SCHEMA_RELEASE}"
 
     # ---------------------------------------
