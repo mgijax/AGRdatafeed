@@ -137,6 +137,8 @@ def loadEMAPA (url):
       </query>
     '''
     for t in doQuery(q, url):
+	t["startsAt"] = int(t["startsAt"])
+	t["endsAt"] = int(t["endsAt"])
         id2emapa[t["identifier"]] = t
     log('Loaded %d EMAPA terms.'%len(id2emapa))
     return id2emapa
