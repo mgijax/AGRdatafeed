@@ -24,8 +24,13 @@ import sys
 import argparse
 import json
 from itertools import imap, chain, groupby
-from AGRlib import getConfig, stripNulls, buildMgiDataProviderObject, buildMetaObject, getTimeStamp, makeOneOfConstraint, doQuery
+from AGRlib import getConfig, stripNulls, buildMgiDataProviderObject, buildMetaObject, getTimeStamp, makeOneOfConstraint, doQuery, makePubRef
 import heapq
+
+#
+code2eco = {
+  "TAS" : "ECO:0000033"
+}
 
 # load config settings
 cp = getConfig()
@@ -130,7 +135,7 @@ def annotations(url, okind, skind, ids = None):
 		r['evidence'] = y[2]
 	    elif y[1] == 'baseAnnots':
 	        r['baseAnnots'] = y[2]
-	rr = applyConversions(r, skind)
+	rr = applyConversions(r, okind, skind)
 	if rr:
 	  for e in rr["invevidence"]:
 	      rr["agrevidence"] = e
@@ -142,13 +147,14 @@ def annotations(url, okind, skind, ids = None):
 # transforms.
 # Args:
 #   a - one annotation
-#   kind - "SequenceFeature", "Allele", or "Genotype"
+#   okind - kind of annotation ontology term, "DOTerm" or "MPTerm"
+#   skind - kind of annotation subject, "SequenceFeature", "Allele", or "Genotype"
 # Returns:
 #   The annotation, with conversions applied
 #
 geno2genes = {}   # genotype->rolled up genes index
 gene2term = {} # gene id -> set of disease or phenotype ids
-def applyConversions(a, kind):
+def applyConversions(a, okind, skind):
     global geno2genes
     #
     # "not" is the only recognized qualifier for 1.0
@@ -163,18 +169,19 @@ def applyConversions(a, kind):
 	# FIXME: temporary tweak for MouseMine annotations. Remove once allele-annotations are being loaded from MGI
 	if e["evidence.code.code"] == "DOA": e["evidence.code.code"] = "TAS"
 	##
+	if okind == "DOTerm": e["evidence.code.code"] = code2eco[e["evidence.code.code"]]
+	##
 	pmid = e["evidence.publications.pubMedId"]
 	mgiid = e["evidence.publications.mgiId"]
 	ref2codes.setdefault((mgiid,pmid), set()).add(e["evidence.code.code"])
     a["invevidence"] = []
     for (k,es) in ref2codes.items():
         (mgiId, pubMedId) = k
-        p = { "modPublicationId" : mgiId }
-        if pubMedId: p["pubMedId"] = "PMID:" + pubMedId
+	p = makePubRef(pubMedId, mgiId)
         a["invevidence"].append({ "publication" : p, "evidenceCodes" : list(es) })
     #
     # object relation for genes and alleles
-    if kind == "SequenceFeature":
+    if skind == "SequenceFeature":
         # Record for later use
         gene2term.setdefault(a["subject.primaryIdentifier"], set()).add(a["ontologyTerm.identifier"])
         #
@@ -183,11 +190,11 @@ def applyConversions(a, kind):
             "objectType" : "gene",
             "associationType" : "is_implicated_in"
         }
-        setAnnotationDate(a, kind)
+        setAnnotationDate(a, skind)
         for ba in a["baseAnnots"]:
 	    # record for later use: which genotypes roll up to this gene
 	    geno2genes.setdefault(ba["baseAnnotations.subject.primaryIdentifier"], set()).add(a["subject.primaryIdentifier"])
-    elif kind == "Allele":
+    elif skind == "Allele":
         # FIXME FIXME FIXME
         # Rolled up allele-disease/pheno annotations have never been implemented in MGI. The rules implemented for mousmine are
         # ancient and incomplete. The following is a TEMPORARY measure to filter the annotations to a more acceptible set.
@@ -207,8 +214,8 @@ def applyConversions(a, kind):
             "objectType" : "allele",
             "associationType" : "is_implicated_in"
         }
-        setAnnotationDate(a, kind)
-    else: # kind == "Genotype"
+        setAnnotationDate(a, skind)
+    else: # skind == "Genotype"
         a["objectName"] = a["subject.name"]
         a["objectRelation"] = {
             "objectType" : "genotype",
@@ -216,12 +223,12 @@ def applyConversions(a, kind):
             # The following line is the reason genes-disease annotation must be processed first...
             "inferredGeneAssociation": list(geno2genes.get(a["subject.primaryIdentifier"],[]))
         }
-        setAnnotationDate(a, kind)
+        setAnnotationDate(a, skind)
     return a
 
 # Sets the annotation date for a gene or allele -to-disease annotation.
 # This is the min annotation date from associated base (genotype) evidence recs
-def setAnnotationDate(a, kind):
+def setAnnotationDate(a, skind):
     d = None
     for e in a["evidence"]:
 	if d is None or e["evidence.annotationDate"] < d:
@@ -246,7 +253,6 @@ def formatDafJsonRecord (annot, kind):
     try:
       if kind == "disease":
         return stripNulls({
-            #'taxonId':                      MOUSETAXONID,
             'objectId':                     annot["subject.primaryIdentifier"],
             'objectName':                   annot["objectName"],
             'objectRelation':               annot["objectRelation"],
@@ -267,10 +273,9 @@ def formatDafJsonRecord (annot, kind):
             'objectId':                     annot["subject.primaryIdentifier"],
             'phenotypeTermIdentifiers':     [{ "termId" : annot["ontologyTerm.identifier"], 'termOrder' : 1 }],
             'phenotypeStatement':           annot["ontologyTerm.name"],
-	    'evidence': {
-		'modPublicationId':         annot["agrevidence"]['publication'].get('modPublicationId', None),
-		'pubMedId':                 annot["agrevidence"]['publication'].get('pubMedId', None),
-	    },
+	    'evidence': makePubRef(
+	      annot["agrevidence"]['publication'].get('pubMedId', None), 
+	      annot["agrevidence"]['publication'].get('modPublicationId', None)),
             'dateAssigned':                 annot["annotationDate"],
             })
     except:
@@ -316,13 +321,13 @@ def main():
         genotypeAnnots = annotations(service, "DOTerm", "Genotype", args.ids)
         #
         for i,ga in enumerate(chain(geneAnnots, alleleAnnots, genotypeAnnots)):
-            print "," if i>0 else "", json.dumps(ga)
+            print "," if i>0 else "", json.dumps(ga, indent = 2)
     if args.doPhenotypes:
         geneAnnots = annotations(service, "MPTerm", "SequenceFeature", args.ids)
         alleleAnnots = annotations(service, "MPTerm", "Allele", args.ids)
         #
         for i,ga in enumerate(chain(geneAnnots, alleleAnnots)):
-            print "," if i>0 else "", json.dumps(ga)
+            print "," if i>0 else "", json.dumps(ga, indent=2)
 
     print "]}"
 
