@@ -28,12 +28,7 @@ from AGRlib import getConfig, stripNulls, buildMetaObject, makeOneOfConstraint, 
 cp = getConfig()
 
 MOUSEMINE     = cp.get("DEFAULT","MOUSEMINEURL")
-taxon         = cp.get("DEFAULT","TAXONID")
 GLOBALTAXONID = cp.get("DEFAULT","GLOBALTAXONID")
-GENELITURL    = cp.get("DEFAULT","GENELITURL")
-MYGENEURL     = cp.get("DEFAULT","MYGENEURL")
-SAMPLEIDS     = cp.get("DEFAULT","SAMPLEIDS").split()
-MGD_OLD_PREFIX= cp.get("DEFAULT","MGD_OLD_PREFIX")
 
 # Mapping from data provider name as stored in MGI to name as needed by AGR
 # Cross references exported to the file are limited to those where the provider's name
@@ -85,7 +80,7 @@ def buildAlleleQuery(url,ids):
       <constraint code="B" path="Allele.alleleType" op="NONE OF"><value>QTL</value><value>Transgenic</value></constraint>
       <constraint code="E" path="Allele.alleleType" op="IS NULL" />
       <constraint code="C" path="Allele.isWildType" op="=" value="false" />
-      <constraint code="D" path="Allele.ontologyAnnotations.ontologyTerm.id" op="IS NOT NULL" />
+      <constraint code="D" path="Allele.ontologyAnnotations" op="IS NOT NULL" />
       %(xtraConstraint)s
       </query>
     ''' % qopts
@@ -132,7 +127,7 @@ def getJsonObj(obj):
     "primaryId"		: obj["primaryIdentifier"],
     "symbol"		: insertSups(obj["symbol"]),
     "symbolText"	: obj["symbol"],
-    "taxonId"           : "NCBITaxon:10090",
+    "taxonId"           : GLOBALTAXONID,
     "gene"	        : obj["feature.primaryIdentifier"],
     "synonyms"          : syns,
     "secondaryIds"      : [],
@@ -150,8 +145,6 @@ def parseCmdLine():
       help='Specific MGI ids to dump.')
 
     args = parser.parse_args()
-    if args.sample:
-      args.identifiers.extend(SAMPLEIDS)
     return args
   
 # Main prog. Build the query, run it, and output 
