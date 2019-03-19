@@ -120,6 +120,8 @@ def formatXrefs(obj):
     pgs = ["gene","gene/references"]
     if obj.get('expressed', None):
         pgs.append("gene/expression")
+    if obj.get('expressedImages', None):
+        pgs.append("gene/expression_images")
     xrs.append({"id": obj["primaryIdentifier"], "pages":pgs })
     # add xref to MyGene page (if applicable)
     mgl = formatMyGeneLink(obj)
@@ -203,6 +205,7 @@ def main(args):
 	('gene', mouseGenes),
 	('synonyms', mouseSynonyms),
 	('expressed', mouseExpressedGenes),
+	('expressedImages', mouseExpressedGenesWithImages),
 	('location', mouseLocations),
 	('proteinIds', mouseProteinIds),
 	('xrefs', mouseXrefs),
@@ -317,6 +320,21 @@ mouseExpressedGenes = '''
       <constraint path="Gene.organism.taxonId" op="=" value="10090"/>
       <constraint path="Gene.dataSets.name" op="=" value="Mouse Gene Catalog from MGI"/>
       <constraint path="Gene.expression" op="IS NOT NULL"/>
+    </query>
+    '''
+
+mouseExpressedGenesWithImages = '''
+    <query
+      model="genomic"
+      view="
+        Gene.primaryIdentifier
+	"
+      sortOrder="Gene.primaryIdentifier asc"
+      >
+      %(extraConstraint)s
+      <constraint path="Gene.organism.taxonId" op="=" value="10090"/>
+      <constraint path="Gene.dataSets.name" op="=" value="Mouse Gene Catalog from MGI"/>
+      <constraint path="Gene.expression.image" op="IS NOT NULL"/>
     </query>
     '''
 
