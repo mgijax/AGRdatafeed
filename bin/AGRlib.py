@@ -8,6 +8,7 @@ import datetime
 import os
 import urllib
 import itertools
+import sys
 
 
 #
@@ -50,6 +51,7 @@ def buildMgiDataProviderObject () :
     }
 #
 def doInterMineQuery(q, url): 
+    # sys.stderr.write('Intermine query=' + q + '\n')
     fmt = 'tab'
     url = '%s/query/results?format=%s&query=%s' % (url,fmt,urllib.quote_plus(q))
     fd = urllib.urlopen(url)
@@ -109,6 +111,25 @@ def makeOneOfConstraint(path, vals):
     cvals = ''.join(map(lambda i: '<value>%s</value>' % i, vals))
     cnst = '<constraint path="%s" op="ONE OF">%s</constraint>' % (path,cvals)
   return cnst
+
+# Returns a PublicationRef which contains a publication id (required) and an optional xref
+# to the mod for that publication.
+# The publication id should be the pubmed id , if available. Otherwise, use the MOD pub id.
+# See: https://github.com/alliance-genome/agr_schemas/blob/release-1.0.0.8/publicationRef.json
+def makePubRef (pubmedId, mgiId) :
+  if pubmedId:
+    pid = pubmedId
+    if not pid.startswith("PMID:"): pid = "PMID:" + pid
+  else:
+    pid = mgiId
+  #
+  if pid:
+    return {
+      "publicationId" : pid,
+      "crossReference" : {"id":mgiId ,"pages":["reference"]}
+    }
+  else:
+    return None
 
 #-----------------------------------
 # RFC 3339 timestamps
