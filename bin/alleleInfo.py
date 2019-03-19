@@ -32,7 +32,7 @@ taxon         = cp.get("DEFAULT","TAXONID")
 GLOBALTAXONID = cp.get("DEFAULT","GLOBALTAXONID")
 GENELITURL    = cp.get("DEFAULT","GENELITURL")
 MYGENEURL     = cp.get("DEFAULT","MYGENEURL")
-SAMPLEIDS     = cp.get("DEFAULT","SAMPLEALLELEIDS").split()
+SAMPLEIDS     = cp.get("DEFAULT","SAMPLEIDS").split()
 MGD_OLD_PREFIX= cp.get("DEFAULT","MGD_OLD_PREFIX")
 
 # Mapping from data provider name as stored in MGI to name as needed by AGR
@@ -142,13 +142,6 @@ def getJsonObj(obj):
 #
 def parseCmdLine():
     parser = argparse.ArgumentParser(description='Dumps basic allele information to a JSON file.')
-
-    parser.add_argument(
-      '-s','--sample',
-      action='store_true',
-      default=False,
-      help='Generate sample output',
-      required=False)
 
     parser.add_argument(
       'identifiers', 

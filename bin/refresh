@@ -34,6 +34,8 @@ Options:
 -p pts	Specify which part(s) to run. Argument is a comma-separated list (no spaces) of any of the following:
 	g	Basic gene info
 	a	Allele info
+	v	Allele variant info
+	y	Genotype info
 	e	Wildtype expression data
 	p	Phenotype annotations
 	d	Disease annotations
@@ -77,7 +79,7 @@ function die {
 function checkExit {
     c=$?
     if [ $c -ne 0 ]; then
-	if [ $1 == "-w" ] ; then
+	if [ "$1" == "-w" ] ; then
 	    shift
 	    logit "WARNING: nonzero exit code detected." "$*"
 	else
@@ -294,6 +296,8 @@ function main {
     doPart "p" "phenotype" "diseasePheno.py -p" "phenotype/phenotypeMetaDataDefinition.json" '"objectId"' "PHENOTYPE"
     doPart "d" "disease" "diseasePheno.py -d" "disease/diseaseMetaDataDefinition.json" '"DOid"' "DAF"
     doPart "f" "GFF" "http://www.informatics.jax.org/downloads/mgigff3/MGI.agr.gff3.gz" "" "curie=" "GFF"
+    # doPart "v" "variant" "variant.py" "allele/variantMetaData.json" "" "VARIANT"
+    doPart "y" "genotype" "genotype.py" "genotype/genotypeMetaData.json" "genotypeID" "GENOTYPE"
 
     logit "Finished."
 }
