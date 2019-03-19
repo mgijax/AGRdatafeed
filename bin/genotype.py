@@ -1,6 +1,8 @@
 #
 # genotype.py
 #
+# Only want genotypes where any/all alleles are also in the alleleInfo file.
+#
 
 import sys
 import re
@@ -15,23 +17,14 @@ from AGRlib import getConfig, stripNulls, buildMetaObject, makeOneOfConstraint, 
 cp = getConfig()
 
 MOUSEMINE     = cp.get("DEFAULT","MOUSEMINEURL")
-taxon         = cp.get("DEFAULT","TAXONID")
 GLOBALTAXONID = cp.get("DEFAULT","GLOBALTAXONID")
-GENELITURL    = cp.get("DEFAULT","GENELITURL")
-MYGENEURL     = cp.get("DEFAULT","MYGENEURL")
-SAMPLEIDS     = cp.get("DEFAULT","SAMPLEIDS").split()
-MGD_OLD_PREFIX= cp.get("DEFAULT","MGD_OLD_PREFIX")
+
+# IDs of genotypes to omit (the "Not applicable" and the "Not specified" genotypes)
+SKIP = ["MGI:2166309", "MGI:2166310" ]
 
 #
 def parseCmdLine():
     parser = argparse.ArgumentParser(description='Dumps genotype information to a JSON file.')
-
-    parser.add_argument(
-      '-s','--sample',
-      action='store_true',
-      default=False,
-      help='Generate sample output',
-      required=False)
 
     parser.add_argument(
       'identifiers', 
@@ -40,8 +33,6 @@ def parseCmdLine():
       help='Specific MGI ids to dump.')
 
     args = parser.parse_args()
-    if args.sample:
-      args.identifiers.extend(SAMPLEIDS)
     return args
   
 bracketed_re = re.compile(r'<([^>]+)>')
@@ -55,7 +46,7 @@ def htmlify (s) :
   return ''.join(parts2)
 
 # Returns a JSON object for the given genotype
-def getJsonObj (g) :
+def getJsonObj (g, includedAlleles) :
   try:
     # Turn AllelePairs  into genotypeComponents.
     # Have to guard against genotypes having duplicate AllelePair records (it happens).
@@ -67,11 +58,17 @@ def getJsonObj (g) :
       "zygosity" : p[1]
     } for p in pts ]
     #
+    # Test that all component alleles are in the included set. 
+    # Skip if that is not the case.
+    for c in comps:
+      if c["alleleID"] not in includedAlleles:
+        return None
+    #
     return {
       "genotypeID" : g["primaryIdentifier"],
-      "name" :  htmlify(g["name"]),
-      "nameText" : g["name"],
-      "taxonId" : taxon,
+      "name" :  htmlify(g["name"].strip()),
+      "nameText" : g["name"].strip(),
+      "taxonId" : GLOBALTAXONID,
       "crossReference" : {
         "id" : g["primaryIdentifier"],
         "pages" : [ "genotype" ]
@@ -86,16 +83,22 @@ def main():
   args = parseCmdLine()
   ids = args.identifiers
   xtra = makeOneOfConstraint('Genotype.alleles.feature.primaryIdentifier', ids)
+  xtra2 = makeOneOfConstraint('Allele.feature.primaryIdentifier', ids)
 
   # Process Genotype-AllelePairs. Build index from genotype id to list of component (allele+state)
   id2components = {}
-  toDelete = set()
+  toDelete = set(SKIP)
   for r in doQuery(q_genotypeAlleles % xtra, MOUSEMINE):
     gid = r["primaryIdentifier"]
     try:
       id2components.setdefault(gid, []).append(r)
     except:
       toDelete.add(gid)
+
+  # Build set of MGI ids of alleles being sent to the alliance
+  includedAlleles = set()
+  for r in doQuery(q_alleles % xtra2, MOUSEMINE):
+    includedAlleles.add(r['primaryIdentifier'])
 
   # Process genotypes. For each one, find / attach its components if any and output.
   # Screen for genotypes to be deleted.
@@ -107,12 +110,14 @@ def main():
     if gid in toDelete:
       continue
     g["components"] = id2components.get(gid,[])
-    gobj = getJsonObj(g)
+    gobj = getJsonObj(g, includedAlleles)
     if gobj:
 	if not first: print ",",
 	print json.dumps(gobj, indent=2)
 	first=False
   print "]}"
+
+## ----------------------------------------------------
 
 #
 # valid GENO term ids for Alliance submissions
@@ -141,6 +146,20 @@ mgi2geno = {
  "Heteroplasmic" : "GENO:0000603"
 }
 
+q_alleles = '''<query
+  model="genomic"
+  view="Allele.primaryIdentifier"
+  constraintLogic="A and (B or E) and C and D"
+  sortOrder="Allele.primaryIdentifier asc"
+  >
+  <constraint code="A" path="Allele.organism.taxonId" op="=" value="10090" />
+  <constraint code="B" path="Allele.alleleType" op="NONE OF"><value>QTL</value><value>Transgenic</value></constraint>
+  <constraint code="E" path="Allele.alleleType" op="IS NULL" />
+  <constraint code="C" path="Allele.isWildType" op="=" value="false" />
+  <constraint code="D" path="Allele.ontologyAnnotations" op="IS NOT NULL" />
+  %s
+</query>
+'''
 q_genotypes = '''<query
   model="genomic"
   view="
@@ -148,7 +167,6 @@ q_genotypes = '''<query
     Genotype.name
     Genotype.background.primaryIdentifier
     "
-  longDescription=""
   sortOrder="Genotype.primaryIdentifier asc"
   >
   %s
