@@ -15,7 +15,6 @@
 #
 # Assay types mapped to MMO terms.
 #
-# TODO: anatomy terms mapped to AGR grouping labels.
 # See: https://docs.google.com/spreadsheets/d/1_UcKTq7y-wsQ83_kJlP6X5mQdgKykaPWlDdkZzCuygI/edit#gid=313336440
 #
 # FIXME: Need annotation dates!
@@ -39,7 +38,7 @@ import types
 import argparse
 
 # nonstandard dependencies
-from AGRlib import getConfig, stripNulls, buildMetaObject, doQuery, makeOneOfConstraint
+from AGRlib import getConfig, stripNulls, buildMetaObject, doQuery, makeOneOfConstraint, makePubRef
 
 #-----------------------------------
 # Mapping from our assay type to MMO ids
@@ -60,8 +59,7 @@ assayType2mmo = dict([
 # mappings from: https://docs.google.com/spreadsheets/d/1_UcKTq7y-wsQ83_kJlP6X5mQdgKykaPWlDdkZzCuygI/edit#gid=313336440
 uberonEmapaTbl = map(lambda row:row.split('\t'), ('''
 UBERON:0001009	EMAPA:16104	cardiovascular system
-UBERON:0001007	EMAPA:16246	alimentary system
-UBERON:0001007	EMAPA:16840	liver and biliary system
+UBERON:0005409	EMAPA:16246	alimentary system
 UBERON:0000949	EMAPA:35306	endocrine system
 UBERON:0001008	EMAPA:17366	urinary system
 UBERON:0002330	EMAPA:35329	exocrine system
@@ -75,7 +73,7 @@ UBERON:0001004	EMAPA:16727	respiratory system
 UBERON:0001032	EMAPA:16192	sensory organ system
 UBERON:0005726	EMAPA:36004	olfactory system
 UBERON:0005726	EMAPA:36885	gustatory system
-UBERON:0007037	N/A	
+UBERON:0007037	N/A
 UBERON:0002105	EMAPA:37985	vestibulo-auditory system
 UBERON:0002104	EMAPA:36003	visual system
 UBERON:0000924	EMAPA:35985	ectoderm
@@ -85,7 +83,7 @@ UBERON:0003104	EMAPA:16097	mesenchyme
 UBERON:0001013	EMAPA:35112	adipose tissue
 UBERON:0000026	EMAPA:37283	appendage
 UBERON:0016887	EMAPA:16042	extraembryonic component
-UBERON:6005023	N/A	
+UBERON:6005023	N/A
 UBERON:0002539	EMAPA:16117	branchial arch
 '''.strip().split('\n')))
 
@@ -186,46 +184,6 @@ def ancestorsAt (termId, stage, id2emapa, id2pids) :
 #-----------------------------------
 # Returns unique-ified expression assay results. 
 #
-def xetExpressionData(service,ids):
-    log('Getting expression data...')
-    query = service.new_query("GXDExpression")
-    #
-    query.add_view(
-        "assayId", "assayType", "feature.primaryIdentifier",
-	"stage", "structure.identifier", "publication.mgiId",
-	"publication.pubMedId"
-    )
-    query.add_constraint("detected", "=", "true", code = "B")
-    query.add_constraint("genotype.hasMutantAllele", "=", "false", code = "C")
-    query.add_constraint("assayType", "=", "In situ reporter (knock in)", code = "D")
-    query.add_constraint("genotype.zygosity", "=", "ht", code = "E")
-
-    lexp = "B and (C or (D and E))"
-    if len(ids):
-	lexp = "A and " + lexp
-	query.add_constraint("feature.primaryIdentifier", "ONE OF", ids, code = "A")
-    query.set_logic(lexp)
-
-    # Grrr. Because of a bug in the python IM client lib, sort specifications are ignored.
-    # Have to read in the whole thing and sort in memory. Yuck.
-    data = list(query.rows())
-    data.sort(key=lambda r: (r["assayId"],r["structure.identifier"],r["stage"]))
-    #
-    prev = None
-    unique = []
-    for r in data:
-	if not prev \
-	or r["assayId"] != prev["assayId"] \
-	or r["stage"] != prev["stage"] \
-	or r["structure.identifier"] != prev["structure.identifier"]:
-	    unique.append(r)
-	#
-	prev = r
-    #
-    log('getExpressionData: %d results => %d unique results' % (len(data), len(unique)))
-    return unique
-
-#
 def getExpressionData(url, ids):
   log('Getting expression data...')
   q = '''<query
@@ -272,15 +230,12 @@ def getJsonObj(obj, structureName, uids):
   try:
       return stripNulls({
 	  'geneId': obj['feature.primaryIdentifier'],
-	  'evidence' : {
-	      'modPublicationId': obj['publication.mgiId'],
-	      'pubMedId': mkid(obj['publication.pubMedId'], 'PMID:')
-	  },
+	  'evidence' : makePubRef(obj['publication.pubMedId'], obj['publication.mgiId']),
 	  'assay': assayType2mmo[obj['assayType']],
 	  'dateAssigned' : '2018-07-18T13:27:43-04:00', # FIXME
 	  'whereExpressed': {
 	      'anatomicalStructureTermId' : obj['structure.identifier'],
-	      'anatomcialStructureUberonSlimTermIds': map(lambda u: {'uberonTerm':u}, uids),
+	      'anatomicalStructureUberonSlimTermIds': map(lambda u: {'uberonTerm':u}, uids),
 	      'whereExpressedStatement' : structureName
 	  },  
 	  'whenExpressed': {
