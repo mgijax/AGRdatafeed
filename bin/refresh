@@ -104,7 +104,7 @@ function generate {
   ftype="$1"
   script="$2"
   setFile ${ftype}
-  logit "Generating ${ftype} file: ${FILE}"
+  logit "Generating ${ftype} file: ${FILE} with command: ${script}"
   if [[ ${NO_RUN} ]] ; then
     return
   fi
@@ -163,15 +163,15 @@ function upload {
   ftype=$1
   aftype=$2
   setFile ${ftype}
-  logit "Uploading file to AGR: ${FILE} ..."
+  logit "Uploading file to AGR: ${SCHEMA_RELEASE}_${aftype}_MGD=@${FILE} ..."
   token=`cat ${TOKEN_FILE}`
   if [[ ${NO_RUN} ]] ; then
     return
   fi
   curl \
-      -H "api_access_token: ${token}" \
-      -X POST "https://www.alliancegenome.org/api/data/submit" \
-      -F "${SCHEMA_RELEASE}_${aftype}_10090=@${FILE}"
+      -H "Authorization: Bearer ${token}" \
+      -X POST "https://fms.alliancegenome.org/api/data/submit" \
+      -F "${SCHEMA_RELEASE}_${aftype}_MGI=@${FILE}"
   checkExit
 }
 
@@ -296,7 +296,7 @@ function main {
     doPart "p" "phenotype" "diseasePheno.py -p" "phenotype/phenotypeMetaDataDefinition.json" '"objectId"' "PHENOTYPE"
     doPart "d" "disease" "diseasePheno.py -d" "disease/diseaseMetaDataDefinition.json" '"DOid"' "DAF"
     doPart "f" "GFF" "http://www.informatics.jax.org/downloads/mgigff3/MGI.agr.gff3.gz" "" "curie=" "GFF"
-    # doPart "v" "variant" "variant.py" "allele/variantMetaData.json" "" "VARIANT"
+    doPart "v" "variant" "variant.py mouse_phenotypic_allele_variants_Final.txt" "allele/variantMetaData.json" "" "VARIATION"
     doPart "y" "genotype" "genotype.py" "genotype/genotypeMetaData.json" "genotypeID" "GENOTYPE"
 
     logit "Finished."

@@ -160,7 +160,14 @@ def applyConversions(a, okind, skind):
     # "not" is the only recognized qualifier for 1.0
     if not 'qualifier' in a:
       print '\n\nERROR:', a
-    a["qualifier"] = "not" if a["qualifier"] == "NOT" else None
+
+    # screen out "normal" phenotype annotations
+    # but allow "not" disease annotations. Not sure why the alliance 
+    # handles one and not the other.
+    if okind == "MPTerm" and a["qualifier"] == "normal":
+        return None
+    elif okind == "DOTerm":
+	a["qualifier"] = "not" if a["qualifier"] == "NOT" else None
     #
     # MGI (and MM) store evidence as one evidence code with >= 1 ref.
     # AGR inverts this: one reference with >= 1 evidence code.
@@ -273,9 +280,7 @@ def formatDafJsonRecord (annot, kind):
             'objectId':                     annot["subject.primaryIdentifier"],
             'phenotypeTermIdentifiers':     [{ "termId" : annot["ontologyTerm.identifier"], 'termOrder' : 1 }],
             'phenotypeStatement':           annot["ontologyTerm.name"],
-	    'evidence': makePubRef(
-	      annot["agrevidence"]['publication'].get('pubMedId', None), 
-	      annot["agrevidence"]['publication'].get('modPublicationId', None)),
+	    'evidence':                     annot["agrevidence"]['publication'],
             'dateAssigned':                 annot["annotationDate"],
             })
     except:

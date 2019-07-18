@@ -47,6 +47,7 @@ def main():
     for c in root:
       # quick and dirty conversion to dictionary 
       d = dict([(RE.sub('', x.tag), x.text) for x in c])
+      print d
       # skip anything that's not a file entry
       if not 'ETag' in d:
 	continue
