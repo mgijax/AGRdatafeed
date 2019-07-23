@@ -5,14 +5,16 @@
 # Deals with (ie hides) the paginated nature of the API, so the user just sees everything.
 #
 # Example usage:
-#       python2.7 lsAgr.py -x 10090 -s 1.0.0.8
+#       python lsAgr.py -x 10090 -s 1.0.0.8
 #
 import sys
 import xml.etree.ElementTree as ET
 try:
+  # Python 3
   from urllib.request import urlopen
   from urllib.parse import quote
 except:
+  # Python 2
   from urllib import urlopen
   from urllib import quote
 import re
@@ -26,8 +28,8 @@ def getOptions ():
   parser.add_argument('-x', '--taxonid',
     dest='taxonid',
     action="append",
-    metavar="TAXONID",
-    help="Select for this taxon id or provider. Repeatable, to specify multiple.")
+    metavar="TAXON or PROVIDER",
+    help="Select for this taxon id (eg 10090) or provider (eg MGI). Some schema versions use taxon ids, and some use provider names. To get all data submission from a given MOD, you have to specify both. Repeatable, to specify multiple.")
   parser.add_argument('-d', '--datatype',
     dest='datatype',
     action="append",
