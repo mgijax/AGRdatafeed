@@ -155,36 +155,27 @@ def formatGenomeLocation(chrom, loc):
 	    "chromosome"	: chrom
 	}]
 
-def xgetJsonObj(obj):
-      try:
-	  return stripNulls({
-	    "primaryId"		: obj["primaryIdentifier"],
-	    "symbol"		: obj["symbol"],
-	    "name"		: obj["name"],
-	    "geneSynopsis"	: obj["description"],
-	    "soTermId"		: obj["sequenceOntologyTerm.identifier"],
-	    "taxonId"		: GLOBALTAXONID,
-	    "synonyms"		: [ s for s in obj["synonyms"] if not isSecondaryId(s) and s != obj["symbol"] and s != obj["name"] ],
-	    "secondaryIds"	: [ formatSecondary(s) for s in obj["synonyms"] if isSecondaryId(s) ],
-	    "crossReferences"	: formatXrefs(obj),
-	    "genomeLocations"	: formatGenomeLocation(obj.get('chromosome.primaryIdentifier', None), obj.get('location', [None])[0])
-	  })
-      except:
-          sys.stderr.write('ERROR in getJsonObj. obj=' + str(obj) + '\n')
-	  sys.exit(1)
 def getJsonObj(obj):
-	  return stripNulls({
+      #try:
+          synonyms = [ r['synonyms.value'] for r in obj.get('synonyms',[]) ]
+          basicGeneticEntity = stripNulls({
 	    "primaryId"		: obj["primaryIdentifier"],
+	    "taxonId"		: GLOBALTAXONID,
+	    "secondaryIds"	: [ formatSecondary(s) for s in synonyms if isSecondaryId(s) ],
+	    "synonyms"		: [ s for s in synonyms if not isSecondaryId(s) and s != obj["symbol"] and s != obj["name"] ],
+	    "crossReferences"	: formatXrefs(obj),
+	    "genomeLocations"	: formatGenomeLocation(obj.get('chromosome.primaryIdentifier', None), obj.get('location', [None])[0]),
+          })
+	  return stripNulls({
+            "basicGeneticEntity": basicGeneticEntity,
 	    "symbol"		: obj["symbol"],
 	    "name"		: obj["name"],
 	    "geneSynopsis"	: obj["description"],
 	    "soTermId"		: obj["sequenceOntologyTerm.identifier"],
-	    "taxonId"		: GLOBALTAXONID,
-	    "synonyms"		: [ s for s in obj["synonyms"] if not isSecondaryId(s) and s != obj["symbol"] and s != obj["name"] ],
-	    "secondaryIds"	: [ formatSecondary(s) for s in obj["synonyms"] if isSecondaryId(s) ],
-	    "crossReferences"	: formatXrefs(obj),
-	    "genomeLocations"	: formatGenomeLocation(obj.get('chromosome.primaryIdentifier', None), obj.get('location', [None])[0])
 	  })
+      #except:
+          #sys.stderr.write('ERROR in getJsonObj. obj=' + str(obj) + '\n')
+	  #sys.exit(1)
 #
 def parseCmdLine():
     parser = argparse.ArgumentParser(description='Dumps basic gene information to a JSON file.')
@@ -225,9 +216,31 @@ def main(args):
 	('pantherId', mousePantherIds),
 	('myGeneLink', mouseMyGeneLinks),
     ]
+
+    id2gene = {}
+    for label, q in qs:
+        if label == 'gene':
+            for r in doQuery (q % qmods, MOUSEMINE):
+                r['mgiid'] = r['primaryIdentifier']
+                id2gene[r['primaryIdentifier']] = r
+        else:
+            for r in doQuery (q % qmods, MOUSEMINE):
+                obj = id2gene.get(r['primaryIdentifier'], None)
+                if obj:
+                    obj.setdefault(label,[]).append(r)
+    print '{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(MOUSEMINE), indent=2)
+    first=True
+    for i in id2gene:
+        obj = id2gene[i]
+        if not first: print ',',
+        print json.dumps(getJsonObj(obj), indent=2)
+        first = False
+    print ']\n}'
+
+    '''
     qs2 = []
     for label, q in qs:
-	qiter = doQuery (q % qmods, MOUSEMINE)
+        qiter = doQuery (q % qmods, MOUSEMINE)
 	qiter = itertools.groupby(qiter, lambda x: x['primaryIdentifier'])
 	qiter = itertools.imap(lambda x, y=label: (x[0], y, list(x[1])), qiter)
 	qs2.append(qiter)
@@ -252,9 +265,11 @@ def main(args):
       print json.dumps(getJsonObj(obj), indent=2)
       first=False
     print ']\n}'
+    '''
 
 mouseGenes = '''
     <query
+      name="BGI_mouseGenes"
       model="genomic"
       view="
         Gene.primaryIdentifier
@@ -275,6 +290,7 @@ mouseGenes = '''
 
 mouseSynonyms = '''
     <query
+      name="BGI_mouseSynonyms"
       model="genomic"
       view="
         Gene.primaryIdentifier
@@ -290,6 +306,7 @@ mouseSynonyms = '''
 
 mouseLocations = '''
     <query
+      name="BGI_mouseLocations"
       model="genomic"
       view="
         Gene.primaryIdentifier
@@ -308,6 +325,7 @@ mouseLocations = '''
 
 mouseProteinIds = '''
     <query
+      name="BGI_mouseProteinIds"
       model="genomic"
       view="
         Gene.primaryIdentifier
@@ -323,6 +341,7 @@ mouseProteinIds = '''
 
 mouseExpressedGenes = '''
     <query
+      name="BGI_mouseExpressedGenes"
       model="genomic"
       view="
         Gene.primaryIdentifier
@@ -338,6 +357,7 @@ mouseExpressedGenes = '''
 
 mouseExpressedGenesWithImages = '''
     <query
+      name="BGI_mouseExpressedGenesWithImages"
       model="genomic"
       view="
         Gene.primaryIdentifier
@@ -353,6 +373,7 @@ mouseExpressedGenesWithImages = '''
 
 mouseXrefs = '''
     <query
+      name="BGI_mouseXrefs"
       model="genomic"
       view="
         Gene.primaryIdentifier
@@ -369,6 +390,7 @@ mouseXrefs = '''
 
 mousePantherIds = '''
     <query
+      name="BGI_mousePantherIds"
       model="genomic"
       view="
         Gene.primaryIdentifier
@@ -387,6 +409,7 @@ mousePantherIds = '''
 
 mouseMyGeneLinks = '''
     <query
+      name="BGI_mouseMyGeneLinks"
       model="genomic"
       view="
         Gene.primaryIdentifier
