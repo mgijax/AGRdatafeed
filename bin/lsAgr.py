@@ -2,10 +2,18 @@
 # lsAgr.py
 #
 # Lists the contents of the Alliance downloads area, with optional filtering.
-# Deals with (ie hides) the paginated nature of the API, so the user just sees everything.
+# Deals with (ie hides) the paginated nature of the API, so the user just sees everything,
+# subject to whatever filters they specify..
+#
+# For help:
+#       python lsAgr.py -h
 #
 # Example usage:
-#       python lsAgr.py -x 10090 -s 1.0.0.8
+#       
+#       python lsAgr.py -x 10090 -x MGI -m 2019-01-01..
+#
+# Author:
+#   Joel Richardson
 #
 import sys
 import xml.etree.ElementTree as ET
