@@ -65,15 +65,16 @@ def getJsonObj (g, includedAlleles) :
         return None
     #
     return {
-      "genotypeID" : g["primaryIdentifier"],
+      "primaryID" : g["primaryIdentifier"],
+      "subtype" : "genotype",
       "name" :  htmlify(g["name"].strip()),
-      "nameText" : g["name"].strip(),
+      #"nameText" : g["name"].strip(),
       "taxonId" : GLOBALTAXONID,
       "crossReference" : {
         "id" : g["primaryIdentifier"],
         "pages" : [ "genotype" ]
       },
-      "genotypeComponents" :  comps
+      "affectedGenomicModelComponents" :  comps
     }
   except:
     return None

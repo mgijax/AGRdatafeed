@@ -186,6 +186,12 @@ def applyConversions(a, okind, skind):
         (mgiId, pubMedId) = k
 	p = makePubRef(pubMedId, mgiId)
         a["invevidence"].append({ "publication" : p, "evidenceCodes" : list(es) })
+    # New field needed by AGR. For computed/derived annotations, want the subject IDs from the
+    # base annotations.
+    baseIds = set()
+    for ba in a.get("baseAnnots", []):
+      baseIds.add(ba["baseAnnotations.subject.primaryIdentifier"])
+    a["primaryGeneticEntityIDs"] = list(baseIds)
     #
     # object relation for genes and alleles
     if skind == "SequenceFeature":
@@ -269,6 +275,7 @@ def formatDafJsonRecord (annot, kind):
             #'with':                        [],
             #'modifier':                    None,
             'evidence':                     annot["agrevidence"],
+            'primaryGeneticEntityIDs':      annot["primaryGeneticEntityIDs"],
             #'geneticSex':                  '',
             'dateAssigned':                 annot["annotationDate"],
             'dataProvider':                 [ buildMgiDataProviderObject() ],
@@ -281,6 +288,7 @@ def formatDafJsonRecord (annot, kind):
             'phenotypeTermIdentifiers':     [{ "termId" : annot["ontologyTerm.identifier"], 'termOrder' : 1 }],
             'phenotypeStatement':           annot["ontologyTerm.name"],
 	    'evidence':                     annot["agrevidence"]['publication'],
+            'primaryGeneticEntityIDs':      annot["primaryGeneticEntityIDs"],
             'dateAssigned':                 annot["annotationDate"],
             })
     except:
@@ -330,6 +338,8 @@ def main():
     if args.doPhenotypes:
         geneAnnots = annotations(service, "MPTerm", "SequenceFeature", args.ids)
         alleleAnnots = annotations(service, "MPTerm", "Allele", args.ids)
+        # Not submitting these yet.
+        #   genotypeAnnots = annotations(service, "MPTerm", "Genotype", args.ids)
         #
         for i,ga in enumerate(chain(geneAnnots, alleleAnnots)):
             print "," if i>0 else "", json.dumps(ga, indent=2)

@@ -14,6 +14,7 @@ DO_REPORT=""
 DO_UPLOAD=""
 TOKEN_FILE=""
 NO_RUN=""
+PYTHON="python2.7"
 
 # ---------------------
 function usage {
@@ -115,7 +116,7 @@ function generate {
       fi
   else
       if [[ ${DO_GENERATE} ]] ; then
-	  python ${script} > ${FILE}
+	  ${PYTHON} ${script} > ${FILE}
 	  checkExit
       fi
   fi
@@ -137,7 +138,7 @@ function validate {
   if [[ ${NO_RUN} ]] ; then
     return
   fi
-  python ${VALIDATOR_DIR}/agr_validate.py -s ${VALIDATOR_DIR}/${vschema} -d ${FILE}
+  ${PYTHON} ${VALIDATOR_DIR}/agr_validate.py -s ${VALIDATOR_DIR}/${vschema} -d ${FILE}
   checkExit 
 }
 # ---------------------
@@ -290,14 +291,15 @@ function main {
     mkdir -p ${ODIR}
     checkExit
 
-    doPart "g" "BGI" "basicGeneInfo.py" "gene/geneMetaData.json" '"primaryId"' "BGI"
-    doPart "a" "allele" "alleleInfo.py" "allele/alleleMetaData.json" '"primaryId"' "ALLELE"
-    doPart "e" "expression" "expression.py" "expression/wildtypeExpressionMetaDataDefinition.json" '"geneId"' "EXPRESSION"
-    doPart "p" "phenotype" "diseasePheno.py -p" "phenotype/phenotypeMetaDataDefinition.json" '"objectId"' "PHENOTYPE"
-    doPart "d" "disease" "diseasePheno.py -d" "disease/diseaseMetaDataDefinition.json" '"DOid"' "DAF"
+    doPart "g" "BGI" "basicGeneInfo.py" "ingest/gene/geneMetaData.json" '"primaryId"' "BGI"
+    doPart "a" "allele" "alleleInfo.py" "ingest/allele/alleleMetaData.json" '"primaryId"' "ALLELE"
+    doPart "e" "expression" "expression.py" "ingest/expression/wildtypeExpressionMetaDataDefinition.json" '"geneId"' "EXPRESSION"
+    doPart "p" "phenotype" "diseasePheno.py -p" "ingest/phenotype/phenotypeMetaDataDefinition.json" '"objectId"' "PHENOTYPE"
+    doPart "d" "disease" "diseasePheno.py -d" "ingest/disease/diseaseMetaDataDefinition.json" '"DOid"' "DAF"
     doPart "f" "GFF" "http://www.informatics.jax.org/downloads/mgigff3/MGI.agr.gff3.gz" "" "curie=" "GFF"
-    doPart "v" "variant" "variant.py mouse_phenotypic_allele_variants_Final.txt" "allele/variantMetaData.json" "" "VARIATION"
-    doPart "y" "genotype" "genotype.py" "genotype/genotypeMetaData.json" "genotypeID" "GENOTYPE"
+    doPart "v" "variant" "variant.py mouse_phenotypic_allele_variants_Final.txt" "ingest/allele/variantMetaData.json" "" "VARIATION"
+    #doPart "y" "genotype" "genotype.py" "ingest/affectedGenomicModel/affectedGenomicModelMetaData.json" "genotypeID" "GENOTYPE"
+    doPart "y" "AGM" "genotype.py" "ingest/affectedGenomicModel/affectedGenomicModelMetaData.json" "primaryID" "AGM"
 
     logit "Finished."
 }
