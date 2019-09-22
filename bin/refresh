@@ -297,8 +297,7 @@ function main {
     doPart "p" "phenotype" "diseasePheno.py -p" "ingest/phenotype/phenotypeMetaDataDefinition.json" '"objectId"' "PHENOTYPE"
     doPart "d" "disease" "diseasePheno.py -d" "ingest/disease/diseaseMetaDataDefinition.json" '"DOid"' "DAF"
     doPart "f" "GFF" "http://www.informatics.jax.org/downloads/mgigff3/MGI.agr.gff3.gz" "" "curie=" "GFF"
-    doPart "v" "variant" "variant.py mouse_phenotypic_allele_variants_Final.txt" "ingest/allele/variantMetaData.json" "" "VARIATION"
-    #doPart "y" "genotype" "genotype.py" "ingest/affectedGenomicModel/affectedGenomicModelMetaData.json" "genotypeID" "GENOTYPE"
+    doPart "v" "variant" "variant.py" "ingest/allele/variantMetaData.json" "" "VARIATION"
     doPart "y" "AGM" "genotype.py" "ingest/affectedGenomicModel/affectedGenomicModelMetaData.json" "primaryID" "AGM"
 
     logit "Finished."
