@@ -335,13 +335,12 @@ def main():
         #
         for i,ga in enumerate(chain(geneAnnots, alleleAnnots, genotypeAnnots)):
             print "," if i>0 else "", json.dumps(ga, indent = 2)
-    if args.doPhenotypes:
+    elif args.doPhenotypes:
         geneAnnots = annotations(service, "MPTerm", "SequenceFeature", args.ids)
         alleleAnnots = annotations(service, "MPTerm", "Allele", args.ids)
-        # Not submitting these yet.
-        #   genotypeAnnots = annotations(service, "MPTerm", "Genotype", args.ids)
+        genotypeAnnots = annotations(service, "MPTerm", "Genotype", args.ids)
         #
-        for i,ga in enumerate(chain(geneAnnots, alleleAnnots)):
+        for i,ga in enumerate(chain(geneAnnots, alleleAnnots, genotypeAnnots)):
             print "," if i>0 else "", json.dumps(ga, indent=2)
 
     print "]}"
