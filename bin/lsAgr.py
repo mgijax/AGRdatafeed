@@ -29,7 +29,7 @@ import re
 import json
 import argparse
 
-AGRURL='http://download.alliancegenome.org/'
+AGRURL='http://download.alliancegenome.org/?list-type=2'
 
 def getOptions ():
   parser = argparse.ArgumentParser(description="List the files that have been uploaded to the Alliance.")
