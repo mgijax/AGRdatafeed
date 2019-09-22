@@ -65,7 +65,7 @@ def getJsonObj(r) :
   rr = stripNulls({
     "alleleId": r["allele_id"],
     "assembly" : r["build"],
-    "chromosome" : "chr" + r["chromosome"],
+    "chromosome" : r["chromosome"],
     "start" : int(r["startcoordinate"]),
     "end" : int(r["endcoordinate"]),
     "genomicReferenceSequence" : cleanseSequence(r["referencesequence"]),
