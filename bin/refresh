@@ -5,6 +5,7 @@
 LOGFILE=""
 OUTPUT_DIR="."
 SCHEMA_RELEASE=""
+RELEASE_VERSION=""
 RELEASE_COUNT=""
 DO_ALL="true"
 VALIDATOR_DIR=""
@@ -29,6 +30,7 @@ Options:
 -C file	Sources the specified config file.
 -l file Specifies a log file. By default, log messages are sent to stdout.
 -s ver	Specifies the alliance schema release number, eg, 1.0.0.7. Required.
+-R ver  Specifies the alliance software release, e.g. 2.3
 -c n	Specifies the update count for this schema version (1, 2, 3, ...).  Optional.
 -d dir	Specifies the parent directory where the output directory will be created.
 	Default = current working directory.
@@ -164,7 +166,7 @@ function upload {
   ftype=$1
   aftype=$2
   setFile ${ftype}
-  logit "Uploading file to AGR: ${SCHEMA_RELEASE}_${aftype}_MGD=@${FILE} ..."
+  logit "Uploading file to AGR: ${RELEASE_VERSION}_${aftype}_MGI=@${FILE} ..."
   token=`cat ${TOKEN_FILE}`
   if [[ ${NO_RUN} ]] ; then
     return
@@ -172,7 +174,7 @@ function upload {
   curl \
       -H "Authorization: Bearer ${token}" \
       -X POST "https://fms.alliancegenome.org/api/data/submit" \
-      -F "${SCHEMA_RELEASE}_${aftype}_MGI=@${FILE}"
+      -F "${RELEASE_VERSION}_${aftype}_MGI=@${FILE}"
   checkExit
 }
 
@@ -250,6 +252,10 @@ function parseCommandLine {
 	    shift
 	    SCHEMA_RELEASE="$1"
 	    ;;  
+	-R) 
+	    shift
+	    RELEASE_VERSION="$1"
+	    ;;  
 	-c) 
 	    shift
 	    RELEASE_COUNT="$1"
@@ -266,7 +272,10 @@ function parseCommandLine {
     # ---------------------------------------
     # Check parameters
     if [[ ! ${SCHEMA_RELEASE} ]] ; then
-      die "Please specify a schema version."
+      die "Please specify a schema version with -s."
+    fi
+    if [[ ! ${RELEASE_VERSION} ]] ; then
+      die "Please specify a release version with -R."
     fi
 }
 
