@@ -11,6 +11,7 @@ from AGRlib import getConfig, stripNulls, buildMetaObject, makeOneOfConstraint, 
 cp = getConfig()
 MOUSEMINE     = cp.get("DEFAULT","MOUSEMINEURL")
 GLOBALTAXONID = cp.get("DEFAULT","GLOBALTAXONID")
+PSQL = cp.get("DEFAULT","PSQL")
 
 chr2accid = {
   "GRCm38" : {
@@ -43,7 +44,7 @@ def toDict(row, labels):
     return dict(zip(labels, row))
 
 def sql (query):
-    cmd = "psql -A -U mgd_public -h mgi-adhoc.jax.org mgd -c".split()
+    cmd = (PSQL + " -A -U mgd_public -h mgi-adhoc.jax.org mgd -c").split()
     cmd.append(query)
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
     labels = None
