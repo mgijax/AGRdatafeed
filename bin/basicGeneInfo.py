@@ -155,6 +155,16 @@ def formatGenomeLocation(chrom, loc):
 	    "chromosome"	: chrom
 	}]
 
+def formatDescription (obj) :
+    d = obj["description"]
+    if not d:
+      return None
+    i = d.find("PHENOTYPE")
+    if i == -1:
+      return None
+    else:
+      return d[i:]
+
 def getJsonObj(obj):
       #try:
           synonyms = [ r['synonyms.value'] for r in obj.get('synonyms',[]) ]
@@ -170,7 +180,7 @@ def getJsonObj(obj):
             "basicGeneticEntity": basicGeneticEntity,
 	    "symbol"		: obj["symbol"],
 	    "name"		: obj["name"],
-	    "geneSynopsis"	: obj["description"],
+	    "geneSynopsis"	: formatDescription(obj),
 	    "soTermId"		: obj["sequenceOntologyTerm.identifier"],
 	  })
       #except:
