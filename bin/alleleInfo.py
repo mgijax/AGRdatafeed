@@ -55,7 +55,9 @@ def buildAlleleQuery(url,ids):
       sortOrder="Allele.primaryIdentifier asc"
       >
       <constraint code="A" path="Allele.organism.taxonId" op="=" value="10090" />
-      <constraint code="B" path="Allele.alleleType" op="NONE OF"><value>QTL</value><value>Transgenic</value></constraint>
+      <constraint code="B" path="Allele.alleleType" op="NONE OF">
+        <value>QTL</value>
+      </constraint>
       <constraint code="E" path="Allele.alleleType" op="IS NULL" />
       <constraint code="C" path="Allele.isWildType" op="=" value="false" />
       <constraint code="D" path="Allele.ontologyAnnotations.ontologyTerm.id" op="IS NOT NULL" />
@@ -71,13 +73,18 @@ def buildAlleleQuery(url,ids):
       Allele.primaryIdentifier
       Allele.symbol
       Allele.name
+      Allele.alleleType
+      Allele.molecularNote
       Allele.feature.primaryIdentifier
+      Allele.feature.mgiType
       "
       constraintLogic="A and (B or E) and C and D"
       sortOrder="Allele.primaryIdentifier asc"
       >
       <constraint code="A" path="Allele.organism.taxonId" op="=" value="10090" />
-      <constraint code="B" path="Allele.alleleType" op="NONE OF"><value>QTL</value><value>Transgenic</value></constraint>
+      <constraint code="B" path="Allele.alleleType" op="NONE OF">
+        <value>QTL</value>
+      </constraint>
       <constraint code="E" path="Allele.alleleType" op="IS NULL" />
       <constraint code="C" path="Allele.isWildType" op="=" value="false" />
       <constraint code="D" path="Allele.ontologyAnnotations" op="IS NOT NULL" />
@@ -123,15 +130,20 @@ def getJsonObj(obj):
   syns = map(insertSups, list(syns))
   syns.sort()
   ###
+  isTgAllele = obj["alleleType"] == "Transgenic"
+  isTgMarker = obj["feature.mgiType"] == "transgene"
+  ###
   return stripNulls({
     "primaryId"		: obj["primaryIdentifier"],
     "symbol"		: insertSups(obj["symbol"]),
     "symbolText"	: obj["symbol"],
     "taxonId"           : GLOBALTAXONID,
-    "gene"	        : obj["feature.primaryIdentifier"],
+    "gene"	        : None if isTgAllele and isTgMarker else obj["feature.primaryIdentifier"],
     "synonyms"          : syns,
     "secondaryIds"      : [],
-    "crossReferences"   : formatXrefs(obj)
+    "crossReferences"   : formatXrefs(obj),
+    "constructInsertionType" : "Transgenic Insertion" if isTgAllele else None,
+    "description" : obj["molecularNote"]
   })
 
 #

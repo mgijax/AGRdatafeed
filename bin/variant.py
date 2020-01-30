@@ -6,12 +6,11 @@ import sys
 import re
 import subprocess
 import json
-from AGRlib import getConfig, stripNulls, buildMetaObject, makeOneOfConstraint, doQuery
+from AGRlib import getConfig, stripNulls, buildMetaObject, makeOneOfConstraint, doQuery, sql
 
 cp = getConfig()
 MOUSEMINE     = cp.get("DEFAULT","MOUSEMINEURL")
 GLOBALTAXONID = cp.get("DEFAULT","GLOBALTAXONID")
-PSQL = cp.get("DEFAULT","PSQL")
 
 chr2accid = {
   "GRCm38" : {
@@ -39,22 +38,6 @@ chr2accid = {
     "MT": "NC_005089.1"
   }
 }
-
-def toDict(row, labels):
-    return dict(zip(labels, row))
-
-def sql (query):
-    cmd = (PSQL + " -A -U mgd_public -h mgi-adhoc.jax.org mgd -c").split()
-    cmd.append(query)
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-    labels = None
-    for line in proc.stdout:
-        toks = line[:-1].split(b'|')
-        if labels is None:
-            labels = toks
-        elif len(toks) == len(labels):
-            yield toDict(toks, labels)
-    proc.wait()
 
 #
 S_RE = re.compile('[^a-zA-Z-]')

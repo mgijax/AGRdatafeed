@@ -9,6 +9,7 @@ import os
 import urllib
 import itertools
 import sys
+import subprocess
 
 
 #
@@ -151,6 +152,28 @@ def getTimeStamp(s = None):
         return rfc3339(d)
     else:
         return rfc3339(time.time())
+
+#---------------------------------
+PSQL = None
+def sql (query):
+    global PSQL
+    if PSQL is None:
+        PSQL = getConfig().get("DEFAULT","PSQL")
+    cmd = (PSQL + " -A -U mgd_public -h mgi-adhoc.jax.org mgd -c").split()
+    cmd.append(query)
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+    #
+    def toDict(row, labels):
+        return dict(zip(labels, row))
+    #
+    labels = None
+    for line in proc.stdout:
+        toks = line[:-1].split(b'|')
+        if labels is None:
+            labels = toks
+        elif len(toks) == len(labels):
+            yield toDict(toks, labels)
+    proc.wait()
 
 #-----------------------------------
 

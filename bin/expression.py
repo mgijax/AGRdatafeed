@@ -301,12 +301,13 @@ def main():
       hla = highlevelemapa & ancs
       # the uberon IDs these map to
       uids = set(map(lambda a: emapa2uberon.get(a,'Other') ,hla))
+      '''
       if eid == 'EMAPA:35177':
           log('\n' + eid + ' ' + structureName + ' TS ' + str(s))
 	  log('ancs=' + str(ancs))
 	  log('hla=' + str(hla))
 	  log('uids=' + str(uids))
-
+      '''
       if len(uids) == 0:
 	  noMapping.add((eid, structureName))
           uids = ['Other']
