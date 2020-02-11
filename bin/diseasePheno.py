@@ -91,6 +91,7 @@ def annotations(url, okind, skind, ids = None):
 	OntologyAnnotation.evidence.id
 	OntologyAnnotation.evidence.annotationDate
 	OntologyAnnotation.evidence.code.code
+	OntologyAnnotation.evidence.publications.id
 	OntologyAnnotation.evidence.publications.pubMedId
 	OntologyAnnotation.evidence.publications.mgiJnum
 	OntologyAnnotation.evidence.publications.mgiId
@@ -109,6 +110,7 @@ def annotations(url, okind, skind, ids = None):
 	model="genomic"
 	view="
 	    OntologyAnnotationEvidence.id
+            OntologyAnnotationEvidence.publications.id
 	    OntologyAnnotationEvidence.annotation.id
 	    OntologyAnnotationEvidence.baseAnnotations.subject.primaryIdentifier
 	    OntologyAnnotationEvidence.baseAnnotations.evidence.annotationDate
@@ -134,11 +136,16 @@ def annotations(url, okind, skind, ids = None):
 	    elif y[1] == 'evidence':
 		r['evidence'] = y[2]
 	    elif y[1] == 'baseAnnots':
+                # Note that these are *all* the base annotations. Each one is associated with a 
+                # specific evidence object. Look for matching ids
+                # the field named 'id' in the base annot record should equal the 'evidence.id'
+                # in the evidence object.
 	        r['baseAnnots'] = y[2]
 	rr = applyConversions(r, okind, skind)
 	if rr:
-	  for e in rr["invevidence"]:
+	  for n,e in enumerate(rr["invevidence"]):
 	      rr["agrevidence"] = e
+              rr["agrbaseannots"] = rr["invbaseannots"][n]
 	      yield formatDafJsonRecord(rr, "disease" if okind == "DOTerm" else "phenotype")
 
 ########
@@ -168,30 +175,43 @@ def applyConversions(a, okind, skind):
         return None
     elif okind == "DOTerm":
 	a["qualifier"] = "not" if a["qualifier"] == "NOT" else None
-    #
+    ##
+    # Attach base annotations to their proper evidence records
+    for e in a["evidence"]:
+        # Attach base annotations to the inverted evidence records they belong to
+        e["baseAnnots"] = []
+        for ba in a.get("baseAnnots", []):
+            if ba["publications.id"] == e["evidence.publications.id"]:
+               e["baseAnnots"].append(ba)
+    a["baseAnnots"] = []
+    ##
     # MGI (and MM) store evidence as one evidence code with >= 1 ref.
     # AGR inverts this: one reference with >= 1 evidence code.
     ref2codes = {}
+    ref2baseAnnots = {}
     for e in a["evidence"]:
 	# FIXME: temporary tweak for MouseMine annotations. Remove once allele-annotations are being loaded from MGI
-	if e["evidence.code.code"] == "DOA": e["evidence.code.code"] = "TAS"
-	##
-	if okind == "DOTerm": e["evidence.code.code"] = code2eco[e["evidence.code.code"]]
-	##
+	if e["evidence.code.code"] == "DOA":
+            e["evidence.code.code"] = "TAS"
+	#
+	if okind == "DOTerm":
+            e["evidence.code.code"] = code2eco[e["evidence.code.code"]]
+	#
 	pmid = e["evidence.publications.pubMedId"]
 	mgiid = e["evidence.publications.mgiId"]
 	ref2codes.setdefault((mgiid,pmid), set()).add(e["evidence.code.code"])
+        ref2baseAnnots.setdefault((mgiid, pmid), []).extend(map(lambda x: x["baseAnnotations.subject.primaryIdentifier"], e["baseAnnots"]))
+    ##
+    # create list of "inverted" evidence records, each having a pub id and list of evidence codes
     a["invevidence"] = []
+    a["invbaseannots"] = []
     for (k,es) in ref2codes.items():
         (mgiId, pubMedId) = k
 	p = makePubRef(pubMedId, mgiId)
         a["invevidence"].append({ "publication" : p, "evidenceCodes" : list(es) })
-    # New field needed by AGR. For computed/derived annotations, want the subject IDs from the
-    # base annotations.
-    baseIds = set()
-    for ba in a.get("baseAnnots", []):
-      baseIds.add(ba["baseAnnotations.subject.primaryIdentifier"])
-    a["primaryGeneticEntityIDs"] = list(baseIds)
+        #
+        baseAnnots = list(set(ref2baseAnnots[k]))
+        a["invbaseannots"].append(baseAnnots)
     #
     # object relation for genes and alleles
     if skind == "SequenceFeature":
@@ -217,8 +237,9 @@ def applyConversions(a, okind, skind):
         # We will only include a rolled up allele-disease/pheno annotation if the allele's gene also has a rolled-up annotation to 
         # the same disease/pheno. (Sue Bello suggested this rule.) 
 	#
-        # The ultimate solution is to compute the rolled up annotations in MGI (as with gene-disease/pheno annotations) and simply
-        # load them into MouseMine. There is a TR for this. When that TR is complete, the following can go away...
+        # The ultimate solution is to compute the rolled up annotations in MGI 
+        # (as with gene-disease/pheno annotations) and simply # load them into MouseMine. There is a TR for this.
+        # When that TR is complete, the following can go away...
         # 
         if not a["ontologyTerm.identifier"] in gene2term.get(a["subject.feature.primaryIdentifier"], []):
             return None
@@ -263,6 +284,8 @@ def log (s):
 #    kind (string) Either "disease" or "phenotype"
 #
 def formatDafJsonRecord (annot, kind):
+    #
+    annot["primaryGeneticEntityIDs"] = []
     try:
       if kind == "disease":
         return stripNulls({
@@ -275,7 +298,7 @@ def formatDafJsonRecord (annot, kind):
             #'with':                        [],
             #'modifier':                    None,
             'evidence':                     annot["agrevidence"],
-            'primaryGeneticEntityIDs':      annot["primaryGeneticEntityIDs"],
+            'primaryGeneticEntityIDs':      annot["agrbaseannots"],
             #'geneticSex':                  '',
             'dateAssigned':                 annot["annotationDate"],
             'dataProvider':                 [ buildMgiDataProviderObject() ],
