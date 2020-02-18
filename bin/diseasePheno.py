@@ -311,7 +311,7 @@ def formatDafJsonRecord (annot, kind):
             'phenotypeTermIdentifiers':     [{ "termId" : annot["ontologyTerm.identifier"], 'termOrder' : 1 }],
             'phenotypeStatement':           annot["ontologyTerm.name"],
 	    'evidence':                     annot["agrevidence"]['publication'],
-            'primaryGeneticEntityIDs':      annot["primaryGeneticEntityIDs"],
+            'primaryGeneticEntityIDs':      annot["agrbaseannots"],
             'dateAssigned':                 annot["annotationDate"],
             })
     except:
