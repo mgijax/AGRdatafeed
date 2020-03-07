@@ -110,7 +110,7 @@ def insertSups (s) :
 
 #
 def formatXrefs(obj):
-    return [{"id":obj["primaryIdentifier"], "pages":["allele"]}]
+    return [{"id":obj["primaryIdentifier"], "pages":["allele", "allele/references"]}]
 
 # Here is the magic by which an object returned by the query is converted to an object
 # conforming to the spec.
