@@ -154,7 +154,7 @@ q_alleles = '''<query
   sortOrder="Allele.primaryIdentifier asc"
   >
   <constraint code="A" path="Allele.organism.taxonId" op="=" value="10090" />
-  <constraint code="B" path="Allele.alleleType" op="NONE OF"><value>QTL</value><value>Transgenic</value></constraint>
+  <constraint code="B" path="Allele.alleleType" op="NONE OF"><value>QTL</value></constraint>
   <constraint code="E" path="Allele.alleleType" op="IS NULL" />
   <constraint code="C" path="Allele.isWildType" op="=" value="false" />
   <constraint code="D" path="Allele.ontologyAnnotations" op="IS NOT NULL" />
