@@ -23,8 +23,8 @@ try:
   from urllib.parse import quote
 except:
   # Python 2
-  from urllib import urlopen
-  from urllib import quote
+  from urllib.request import urlopen
+  from urllib.parse import quote
 import re
 import json
 import argparse
@@ -120,9 +120,9 @@ def processOneContentSection (c):
         d['ETag'],
         d['Size'],
       ]
-      print('\t'.join(row))
+      print(('\t'.join(row)))
     else:
-      print(json.dumps(d, indent=2))
+      print((json.dumps(d, indent=2)))
 
 def main():
     global opts

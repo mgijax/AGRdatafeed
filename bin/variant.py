@@ -57,7 +57,7 @@ def getJsonObj(r) :
     "type" : vtype,
     "consequence" : r["effect"],
     "sequenceOfReferenceAccessionNumber": "RefSeq:" + chr2accid[r["build"]][r["chromosome"]],
-    "references" : map(lambda x: {"publicationId" : x}, r['refs'])
+    "references" : [{"publicationId" : x} for x in r['refs']]
   })
   #
   if vtype == "SO:0000159":
@@ -126,26 +126,26 @@ def main () :
       vk2refs.setdefault(x['_variant_key'], []).append(rid)
 
     n = 0
-    print '{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(MOUSEMINE), indent=2)
+    print('{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(MOUSEMINE), indent=2))
     for x in sql(Q_VARIANTS):
       x['build'] = "GRCm38" # FIXME: should get this from the DB
       x['type'] = vk2types.get(x['_variant_key'], None)
       x['effect'] = vk2effects.get(x['_variant_key'], None)
       x['refs'] = vk2refs.get(x['_variant_key'], [])
       try:
-	  j = getJsonObj(x)
-	  if not j: continue
+          j = getJsonObj(x)
+          if not j: continue
       except:
           log("Skipping variant because of error: key=" +x['_variant_key'] + " " + str(x))
-	  log("Error=" + str(sys.exc_info()[1]))
-	  continue
+          log("Error=" + str(sys.exc_info()[1]))
+          continue
       if n > 0: sys.stdout.write(",")
       try:
-	  sys.stdout.write(json.dumps(j, indent=2))
-	  n += 1
+          sys.stdout.write(json.dumps(j, indent=2))
+          n += 1
       except:
-	  log("Skipping variant because of encoding error: key=" +x['_variant_key'] + " " + str(j))
-    print "]}"
+          log("Skipping variant because of encoding error: key=" +x['_variant_key'] + " " + str(j))
+    print("]}")
 
 #
 Q_VARIANTS = '''

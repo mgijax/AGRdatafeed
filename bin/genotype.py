@@ -104,7 +104,7 @@ def main():
   # Process genotypes. For each one, find / attach its components if any and output.
   # Screen for genotypes to be deleted.
   #
-  print '{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(MOUSEMINE), indent=2)
+  print('{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(MOUSEMINE), indent=2))
   first = True
   for g in doQuery(q_genotypes % xtra, MOUSEMINE):
     gid = g["primaryIdentifier"]
@@ -113,10 +113,10 @@ def main():
     g["components"] = id2components.get(gid,[])
     gobj = getJsonObj(g, includedAlleles)
     if gobj:
-	if not first: print ",",
-	print json.dumps(gobj, indent=2)
-	first=False
-  print "]}"
+        if not first: print(",", end=' ')
+        print(json.dumps(gobj, indent=2))
+        first=False
+  print("]}")
 
 ## ----------------------------------------------------
 

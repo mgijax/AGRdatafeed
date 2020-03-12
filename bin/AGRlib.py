@@ -6,7 +6,7 @@ import json
 import re
 import datetime
 import os
-import urllib
+import urllib.request, urllib.parse, urllib.error
 import itertools
 import sys
 import subprocess
@@ -14,7 +14,7 @@ import subprocess
 
 #
 def getConfig():
-    from ConfigParser import ConfigParser
+    from configparser import ConfigParser
     DIR=os.path.dirname(__file__)
     cfname= os.path.abspath(os.path.join(DIR,"..","config.cfg"))
     cp = ConfigParser()
@@ -31,13 +31,13 @@ date_re = re.compile(r'(\d\d\d\d)-(\d\d)-(\d\d)')
 #   value or an empty list value.
 #  This function removes these from a Json obj.
 def stripNulls(obj):
-    for k,v in obj.items():
-        if v is None or type(v) is types.ListType and len(v) == 0:
+    for k,v in list(obj.items()):
+        if v is None or type(v) is list and len(v) == 0:
             del obj[k]
-        elif type(v) is types.ListType:
+        elif type(v) is list:
             for i in v:
-                if type(i) is types.DictType: stripNulls(i)
-        elif type(v) is types.DictType:
+                if type(i) is dict: stripNulls(i)
+        elif type(v) is dict:
             stripNulls(v)
     return obj
 
@@ -45,18 +45,19 @@ def stripNulls(obj):
 def buildMgiDataProviderObject () :
     return {
         "crossReference" : {
-	    "id" : "MGI",
-	    "pages" : ["homepage"]
-	},
-	"type" : "curated"
+            "id" : "MGI",
+            "pages" : ["homepage"]
+        },
+        "type" : "curated"
     }
 #
 def doInterMineQuery(q, url): 
     # sys.stderr.write('Intermine query=' + q + '\n')
     fmt = 'tab'
-    url = '%s/query/results?format=%s&query=%s' % (url,fmt,urllib.quote_plus(q))
-    fd = urllib.urlopen(url)
+    url = '%s/query/results?format=%s&query=%s' % (url,fmt,urllib.parse.quote_plus(q))
+    fd = urllib.request.urlopen(url)
     for line in fd: 
+        line = line.decode('utf-8')
         toks = line[:-1].split('\t')
         yield toks
     fd.close()
@@ -69,15 +70,15 @@ def getView (q, stripRoot=True):
     if m:
       view = m.group(1).strip().split()
       if stripRoot:
-        view = map(lambda v: '.'.join(v.split('.')[1:]), view)
+        view = ['.'.join(v.split('.')[1:]) for v in view]
     return view
 
 # 
 def doQuery(q, url):
   view = getView(q)
   def makeObject (row) :
-    return dict(zip(view, map(lambda f: f if f != '""' else None, row)))
-  return itertools.imap(makeObject, doInterMineQuery(q, url))
+    return dict(list(zip(view, [f if f != '""' else None for f in row])))
+  return map(makeObject, doInterMineQuery(q, url))
 
 # Constructs and returns the metaData (header) for the dump file.
 #
@@ -109,7 +110,7 @@ def buildMetaObject(mouseMineUrl):
 def makeOneOfConstraint(path, vals):
   cnst = ''
   if vals:
-    cvals = ''.join(map(lambda i: '<value>%s</value>' % i, vals))
+    cvals = ''.join(['<value>%s</value>' % i for i in vals])
     cnst = '<constraint path="%s" op="ONE OF">%s</constraint>' % (path,cvals)
   return cnst
 
@@ -164,7 +165,7 @@ def sql (query):
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
     #
     def toDict(row, labels):
-        return dict(zip(labels, row))
+        return dict(list(zip(labels, row)))
     #
     labels = None
     for line in proc.stdout:
@@ -180,16 +181,16 @@ def sql (query):
 if __name__ == "__main__":
     obj =  \
     {   "keep1" : 23,
-	"lose1" : None,
-	"lose2" : [],
-	"keep2" : [23, 64, 'hike', [],
-		    { 'keep3': 78, 'lose3': [], 'lose4':None }],
-	"prefix MGI:" : "MGI:12345",
-	"no prefix"   : "MGI:foo",
-	"prefix MGI: 2" : [ { "foo": "MGI:23456"} ]
+        "lose1" : None,
+        "lose2" : [],
+        "keep2" : [23, 64, 'hike', [],
+                    { 'keep3': 78, 'lose3': [], 'lose4':None }],
+        "prefix MGI:" : "MGI:12345",
+        "no prefix"   : "MGI:foo",
+        "prefix MGI: 2" : [ { "foo": "MGI:23456"} ]
     }
-    print "Before"
-    print json.dumps(obj, sort_keys=True, indent=2, separators=(',', ': ') )
-    print "After cleansing"
+    print("Before")
+    print(json.dumps(obj, sort_keys=True, indent=2, separators=(',', ': ') ))
+    print("After cleansing")
     stripNulls(obj)
-    print json.dumps(obj, sort_keys=True, indent=2, separators=(',', ': ') )
+    print(json.dumps(obj, sort_keys=True, indent=2, separators=(',', ': ') ))

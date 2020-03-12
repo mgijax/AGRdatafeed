@@ -4,7 +4,7 @@
 #
 # Script to dump expression info in AGR json format.
 # The format is described here:
-#	https://github.com/alliance-genome/agr_schemas
+#       https://github.com/alliance-genome/agr_schemas
 #
 # See: https://github.com/alliance-genome/agr_schemas/releases/tag/1.0.0.4
 # Of particular note (from the doc):
@@ -57,35 +57,35 @@ assayType2mmo = dict([
 #-----------------------------------
 # mappings from high level EMAPA terms to UBERON terms
 # mappings from: https://docs.google.com/spreadsheets/d/1_UcKTq7y-wsQ83_kJlP6X5mQdgKykaPWlDdkZzCuygI/edit#gid=313336440
-uberonEmapaTbl = map(lambda row:row.split('\t'), ('''
-UBERON:0001009	EMAPA:16104	cardiovascular system
-UBERON:0005409	EMAPA:16246	alimentary system
-UBERON:0000949	EMAPA:35306	endocrine system
-UBERON:0001008	EMAPA:17366	urinary system
-UBERON:0002330	EMAPA:35329	exocrine system
-UBERON:0002193	EMAPA:18765	hemolymphoid system
-UBERON:0002416	EMAPA:17524	integumental system
-UBERON:0002423	EMAPA:16840	liver and biliary system
-UBERON:0002204	EMAPA:32714	musculoskeletal system
-UBERON:0001016	EMAPA:16469	nervous system
-UBERON:0000990	EMAPA:17381	reproductive system
-UBERON:0001004	EMAPA:16727	respiratory system
-UBERON:0001032	EMAPA:16192	sensory organ system
-UBERON:0005726	EMAPA:36004	olfactory system
-UBERON:0005726	EMAPA:36885	gustatory system
-UBERON:0007037	N/A
-UBERON:0002105	EMAPA:37985	vestibulo-auditory system
-UBERON:0002104	EMAPA:36003	visual system
-UBERON:0000924	EMAPA:35985	ectoderm
-UBERON:0000925	EMAPA:35986	endoderm
-UBERON:0000926	EMAPA:35987	mesoderm
-UBERON:0003104	EMAPA:16097	mesenchyme
-UBERON:0001013	EMAPA:35112	adipose tissue
-UBERON:0000026	EMAPA:37283	appendage
-UBERON:0016887	EMAPA:16042	extraembryonic component
-UBERON:6005023	N/A
-UBERON:0002539	EMAPA:16117	branchial arch
-'''.strip().split('\n')))
+uberonEmapaTbl = [row.split('\t') for row in ('''
+UBERON:0001009  EMAPA:16104     cardiovascular system
+UBERON:0005409  EMAPA:16246     alimentary system
+UBERON:0000949  EMAPA:35306     endocrine system
+UBERON:0001008  EMAPA:17366     urinary system
+UBERON:0002330  EMAPA:35329     exocrine system
+UBERON:0002193  EMAPA:18765     hemolymphoid system
+UBERON:0002416  EMAPA:17524     integumental system
+UBERON:0002423  EMAPA:16840     liver and biliary system
+UBERON:0002204  EMAPA:32714     musculoskeletal system
+UBERON:0001016  EMAPA:16469     nervous system
+UBERON:0000990  EMAPA:17381     reproductive system
+UBERON:0001004  EMAPA:16727     respiratory system
+UBERON:0001032  EMAPA:16192     sensory organ system
+UBERON:0005726  EMAPA:36004     olfactory system
+UBERON:0005726  EMAPA:36885     gustatory system
+UBERON:0007037  N/A
+UBERON:0002105  EMAPA:37985     vestibulo-auditory system
+UBERON:0002104  EMAPA:36003     visual system
+UBERON:0000924  EMAPA:35985     ectoderm
+UBERON:0000925  EMAPA:35986     endoderm
+UBERON:0000926  EMAPA:35987     mesoderm
+UBERON:0003104  EMAPA:16097     mesenchyme
+UBERON:0001013  EMAPA:35112     adipose tissue
+UBERON:0000026  EMAPA:37283     appendage
+UBERON:0016887  EMAPA:16042     extraembryonic component
+UBERON:6005023  N/A
+UBERON:0002539  EMAPA:16117     branchial arch
+'''.strip().split('\n'))]
 
 # index the table
 emapa2uberon = {}
@@ -135,8 +135,8 @@ def loadEMAPA (url):
       </query>
     '''
     for t in doQuery(q, url):
-	t["startsAt"] = int(t["startsAt"])
-	t["endsAt"] = int(t["endsAt"])
+        t["startsAt"] = int(t["startsAt"])
+        t["endsAt"] = int(t["endsAt"])
         id2emapa[t["identifier"]] = t
     log('Loaded %d EMAPA terms.'%len(id2emapa))
     return id2emapa
@@ -154,9 +154,9 @@ def loadEMAPAParents(url):
     longDescription=""
     sortOrder="OntologyRelation.childTerm.identifier asc"
     >
-	<constraint path="OntologyRelation.childTerm" type="EMAPATerm"/>
-	<constraint path="OntologyRelation.parentTerm" type="EMAPATerm"/>
-	<constraint path="OntologyRelation.direct" op="=" value="true"/>
+        <constraint path="OntologyRelation.childTerm" type="EMAPATerm"/>
+        <constraint path="OntologyRelation.parentTerm" type="EMAPATerm"/>
+        <constraint path="OntologyRelation.direct" op="=" value="true"/>
     </query>'''
     id2pids = {}
     for i,r in enumerate(doQuery(q, url)):
@@ -173,10 +173,10 @@ def ancestorsAt (termId, stage, id2emapa, id2pids) :
     ancestors = set([termId])
     def _(t):
         for pid in id2pids.get(t["identifier"],[]):
-	    p = id2emapa[pid]
-	    if p["startsAt"] <= stage and p["endsAt"] >= stage:
-		ancestors.add(pid)
-		_(p)
+            p = id2emapa[pid]
+            if p["startsAt"] <= stage and p["endsAt"] >= stage:
+                ancestors.add(pid)
+                _(p)
         
     _(id2emapa[termId])
     return ancestors
@@ -190,12 +190,12 @@ def getExpressionData(url, ids):
     model="genomic"
     view="
         GXDExpression.assayId
-	GXDExpression.assayType
-	GXDExpression.feature.primaryIdentifier
-	GXDExpression.stage
-	GXDExpression.structure.identifier
-	GXDExpression.publication.mgiId
-	GXDExpression.publication.pubMedId"
+        GXDExpression.assayType
+        GXDExpression.feature.primaryIdentifier
+        GXDExpression.stage
+        GXDExpression.structure.identifier
+        GXDExpression.publication.mgiId
+        GXDExpression.publication.pubMedId"
     sortOrder="GXDExpression.assayId asc GXDExpression.structure.identifier asc GXDExpression.stage asc"
     constraintLogic="A and (B or (C and D)) and E"
     >
@@ -215,8 +215,8 @@ def getExpressionData(url, ids):
       or r["assayId"] != prev["assayId"] \
       or r["stage"] != prev["stage"] \
       or r["structure.identifier"] != prev["structure.identifier"]:
-	  ycount += 1
-	  yield r
+          ycount += 1
+          yield r
       #
       prev = r
       #
@@ -229,23 +229,23 @@ def getJsonObj(obj, structureName, uids):
   mkid = lambda i,p: None if i is None else p+i
   try:
       return stripNulls({
-	  'geneId': obj['feature.primaryIdentifier'],
-	  'evidence' : makePubRef(obj['publication.pubMedId'], obj['publication.mgiId']),
-	  'assay': assayType2mmo[obj['assayType']],
-	  'dateAssigned' : '2018-07-18T13:27:43-04:00', # FIXME
-	  'whereExpressed': {
-	      'anatomicalStructureTermId' : obj['structure.identifier'],
-	      'anatomicalStructureUberonSlimTermIds': map(lambda u: {'uberonTerm':u}, uids),
-	      'whereExpressedStatement' : structureName
-	  },  
-	  'whenExpressed': {
-	      'stageName': obj['stage'],
-	      'stageUberonSlimTerm': {'uberonTerm':ts2uberon[obj['stage']]}
-	  },  
-	  'crossReference' : {
-	      'id' : obj['assayId'],
-	      'pages' : [ 'gene/expression/annotation/detail' ]
-	  }
+          'geneId': obj['feature.primaryIdentifier'],
+          'evidence' : makePubRef(obj['publication.pubMedId'], obj['publication.mgiId']),
+          'assay': assayType2mmo[obj['assayType']],
+          'dateAssigned' : '2018-07-18T13:27:43-04:00', # FIXME
+          'whereExpressed': {
+              'anatomicalStructureTermId' : obj['structure.identifier'],
+              'anatomicalStructureUberonSlimTermIds': [{'uberonTerm':u} for u in uids],
+              'whereExpressedStatement' : structureName
+          },  
+          'whenExpressed': {
+              'stageName': obj['stage'],
+              'stageUberonSlimTerm': {'uberonTerm':ts2uberon[obj['stage']]}
+          },  
+          'crossReference' : {
+              'id' : obj['assayId'],
+              'pages' : [ 'gene/expression/annotation/detail' ]
+          }
       })
   except:
     log('ERROR in expression object: ' + str(obj))
@@ -289,10 +289,10 @@ def main():
   '''
 
   exprData = getExpressionData(MOUSEMINE, ids)
-  print '{ "metaData" : %s, ' % json.dumps(buildMetaObject(MOUSEMINE))
-  print '  "data" : ['
+  print('{ "metaData" : %s, ' % json.dumps(buildMetaObject(MOUSEMINE)))
+  print('  "data" : [')
   for i,r in enumerate(exprData):
-      if i: print ",",
+      if i: print(",", end=' ')
       eid = r['structure.identifier']
       structureName = id2emapa[eid]["name"]
       s = int(r['stage'][2:])
@@ -300,22 +300,22 @@ def main():
       # the high level EMAPA ids this annot rolls up to (intersect my ancestors with the HL EMAPA set)
       hla = highlevelemapa & ancs
       # the uberon IDs these map to
-      uids = set(map(lambda a: emapa2uberon.get(a,'Other') ,hla))
+      uids = set([emapa2uberon.get(a,'Other') for a in hla])
       '''
       if eid == 'EMAPA:35177':
           log('\n' + eid + ' ' + structureName + ' TS ' + str(s))
-	  log('ancs=' + str(ancs))
-	  log('hla=' + str(hla))
-	  log('uids=' + str(uids))
+          log('ancs=' + str(ancs))
+          log('hla=' + str(hla))
+          log('uids=' + str(uids))
       '''
       if len(uids) == 0:
-	  noMapping.add((eid, structureName))
+          noMapping.add((eid, structureName))
           uids = ['Other']
       # get the JSON object for this annotation
       jobj = getJsonObj(r, structureName, uids)
       #
-      print json.dumps(jobj, sort_keys=True, indent=2, separators=(',', ': '))
-  print ']}'
+      print(json.dumps(jobj, sort_keys=True, indent=2, separators=(',', ': ')))
+  print(']}')
   noMapping = list(noMapping)
   noMapping.sort()
   for p in noMapping:

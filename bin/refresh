@@ -15,7 +15,7 @@ DO_REPORT=""
 DO_UPLOAD=""
 TOKEN_FILE=""
 NO_RUN=""
-PYTHON="python2.7"
+PYTHON="python3"
 
 # ---------------------
 function usage {

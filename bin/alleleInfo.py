@@ -4,7 +4,7 @@
 #
 # Script to dump basic allele information from MGI in the AGR standard JSON format.
 # The format is described here:
-#	https://github.com/alliance-genome/agr_schemas
+#       https://github.com/alliance-genome/agr_schemas
 #
 # Example allele IDs: MGI:3603004 MGI:2680557
 #
@@ -33,7 +33,7 @@ GLOBALTAXONID = cp.get("DEFAULT","GLOBALTAXONID")
 # Mapping from data provider name as stored in MGI to name as needed by AGR
 # Cross references exported to the file are limited to those where the provider's name
 # has an entry in this map.
-dataProviders	= {}
+dataProviders   = {}
 for n in cp.options("dataProviders"):
     dataProviders[n] = cp.get("dataProviders", n)
 
@@ -127,18 +127,18 @@ def getJsonObj(obj):
   for s in obj["synonyms"]:
       if s != obj["symbol"] and s != nn:
           syns.add(s)
-  syns = map(insertSups, list(syns))
+  syns = list(map(insertSups, list(syns)))
   syns.sort()
   ###
   isTgAllele = obj["alleleType"] == "Transgenic"
   isTgMarker = obj["feature.mgiType"] == "transgene"
   ###
   return stripNulls({
-    "primaryId"		: obj["primaryIdentifier"],
-    "symbol"		: insertSups(obj["symbol"]),
-    "symbolText"	: obj["symbol"],
+    "primaryId"         : obj["primaryIdentifier"],
+    "symbol"            : insertSups(obj["symbol"]),
+    "symbolText"        : obj["symbol"],
     "taxonId"           : GLOBALTAXONID,
-    "gene"	        : None if isTgAllele and isTgMarker else obj["feature.primaryIdentifier"],
+    "gene"              : None if isTgAllele and isTgMarker else obj["feature.primaryIdentifier"],
     "synonyms"          : syns,
     "secondaryIds"      : [],
     "crossReferences"   : formatXrefs(obj),
@@ -165,13 +165,13 @@ def main():
   ids = args.identifiers
   #
   query = buildAlleleQuery(MOUSEMINE, ids)
-  print '{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(MOUSEMINE), indent=2)
+  print('{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(MOUSEMINE), indent=2))
   first = True
   for a in query:
-    if not first: print ",",
-    print json.dumps(getJsonObj(a), indent=2)
+    if not first: print(",", end=' ')
+    print(json.dumps(getJsonObj(a), indent=2))
     first=False
-  print "]}"
+  print("]}")
 
 #
 main()

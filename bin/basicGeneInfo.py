@@ -4,13 +4,13 @@
 #
 # Script to dump basic gene information from MGI in the AGR standard JSON format.
 # The format is described here:
-#	https://github.com/alliance-genome/agr_schemas
+#       https://github.com/alliance-genome/agr_schemas
 #
 # Usage:
 # To dump all genes and pseudogenes:
-#	% python basicGeneInfo.py > FILE
+#       % python basicGeneInfo.py > FILE
 # To dump specific genes/pseudogenes:
-#	% python basicGeneInfo.py MGI:96449 MGI:96677 MGI:2685845
+#       % python basicGeneInfo.py MGI:96449 MGI:96677 MGI:2685845
 # 
 # This script uses MouseMine webservices API.
 # Implementation approach. A fair amount of detail is needed for each gene.
@@ -37,7 +37,7 @@
 #
 import sys
 import argparse
-import urllib
+import urllib.request, urllib.parse, urllib.error
 import json
 import heapq
 import itertools
@@ -51,7 +51,6 @@ cp = getConfig()
 MOUSEMINE     = cp.get("DEFAULT","MOUSEMINEURL")
 taxon         = cp.get("DEFAULT","TAXONID")
 GLOBALTAXONID = cp.get("DEFAULT","GLOBALTAXONID")
-GENELITURL    = cp.get("DEFAULT","GENELITURL")
 MYGENEURL     = cp.get("DEFAULT","MYGENEURL")
 SAMPLEIDS     = cp.get("DEFAULT","SAMPLEIDS").split()
 MGD_OLD_PREFIX= cp.get("DEFAULT","MGD_OLD_PREFIX")
@@ -59,7 +58,7 @@ MGD_OLD_PREFIX= cp.get("DEFAULT","MGD_OLD_PREFIX")
 # Mapping from data provider name as stored in MGI to name as needed by AGR
 # Cross references exported to the file are limited to those where the provider's name
 # has an entry in this map.
-dataProviders	= {}
+dataProviders   = {}
 for n in cp.options("dataProviders"):
     dataProviders[n] = cp.get("dataProviders", n)
 
@@ -67,7 +66,7 @@ for n in cp.options("dataProviders"):
 # This function distinguishes a synonym value as being either a secondary id or not.
 #
 def isSecondaryId(identifier):
-	return identifier.startswith("MGI:") or identifier.startswith("MGD-")
+        return identifier.startswith("MGI:") or identifier.startswith("MGD-")
 
 # For AGR, old style MGD ids must be given a distinct global prefix (we're using 'MGD_old:') and have 
 # a stanza describing that kind of ID in the resourceDescriptors.yaml file. This routine adds the 
@@ -93,10 +92,10 @@ def formatMyGeneLink(obj):
     return None if ":" in symbol else {"id": "WIKIP:"+symbol}
 
 # Selects the xrefs to be exported for the object and formats them according to the spec.
-#	- restricts which xrefs are exported
-#	- translates provider name
-#	- packs provider name and id into a object
-#	- ensures uniqueness 
+#       - restricts which xrefs are exported
+#       - translates provider name
+#       - packs provider name and id into a object
+#       - ensures uniqueness 
 # Returns a list of cross reference objects.
 #
 def formatXrefs(obj):
@@ -106,9 +105,9 @@ def formatXrefs(obj):
       if dp:
         xrefs.add((dp, x["crossReferences.identifier"]))
     for x in obj.get('proteinIds', []):
-	p = x.get('proteins.uniprotAccession','')
-	if p:
-	    xrefs.add(("UniProtKB", p))
+        p = x.get('proteins.uniprotAccession','')
+        if p:
+            xrefs.add(("UniProtKB", p))
     pid = obj.get('pantherId', [None])[0]
     if pid:
       xrefs.add(('PANTHER', pid['homologues.crossReferences.identifier']))
@@ -141,19 +140,19 @@ def convertStrand(s):
 def formatGenomeLocation(chrom, loc):
     if loc:
         return [{
-	    "assembly"		: loc['chromosomeLocation.assembly'],
-	    "chromosome"	: chrom,
-	    "startPosition"	: int(loc['chromosomeLocation.start']),
-	    "endPosition"	: int(loc['chromosomeLocation.end']),
-	    "strand"		: convertStrand(loc['chromosomeLocation.strand'])
-	}]
+            "assembly"          : loc['chromosomeLocation.assembly'],
+            "chromosome"        : chrom,
+            "startPosition"     : int(loc['chromosomeLocation.start']),
+            "endPosition"       : int(loc['chromosomeLocation.end']),
+            "strand"            : convertStrand(loc['chromosomeLocation.strand'])
+        }]
     #elif obj.chromosome and obj.chromosome.primaryIdentifier != "UN":
     else:
         if chrom and chrom != 'UN':
-	  return [{
-	    "assembly"		: '',
-	    "chromosome"	: chrom
-	}]
+          return [{
+            "assembly"          : '',
+            "chromosome"        : chrom
+        }]
 
 def formatDescription (obj) :
     d = obj["description"]
@@ -169,23 +168,23 @@ def getJsonObj(obj):
       #try:
           synonyms = [ r['synonyms.value'] for r in obj.get('synonyms',[]) ]
           basicGeneticEntity = stripNulls({
-	    "primaryId"		: obj["primaryIdentifier"],
-	    "taxonId"		: GLOBALTAXONID,
-	    "secondaryIds"	: [ formatSecondary(s) for s in synonyms if isSecondaryId(s) ],
-	    "synonyms"		: [ s for s in synonyms if not isSecondaryId(s) and s != obj["symbol"] and s != obj["name"] ],
-	    "crossReferences"	: formatXrefs(obj),
-	    "genomeLocations"	: formatGenomeLocation(obj.get('chromosome.primaryIdentifier', None), obj.get('location', [None])[0]),
+            "primaryId"         : obj["primaryIdentifier"],
+            "taxonId"           : GLOBALTAXONID,
+            "secondaryIds"      : [ formatSecondary(s) for s in synonyms if isSecondaryId(s) ],
+            "synonyms"          : [ s for s in synonyms if not isSecondaryId(s) and s != obj["symbol"] and s != obj["name"] ],
+            "crossReferences"   : formatXrefs(obj),
+            "genomeLocations"   : formatGenomeLocation(obj.get('chromosome.primaryIdentifier', None), obj.get('location', [None])[0]),
           })
-	  return stripNulls({
+          return stripNulls({
             "basicGeneticEntity": basicGeneticEntity,
-	    "symbol"		: obj["symbol"],
-	    "name"		: obj["name"],
-	    "geneSynopsis"	: formatDescription(obj),
-	    "soTermId"		: obj["sequenceOntologyTerm.identifier"],
-	  })
+            "symbol"            : obj["symbol"],
+            "name"              : obj["name"],
+            "geneSynopsis"      : formatDescription(obj),
+            "soTermId"          : obj["sequenceOntologyTerm.identifier"],
+          })
       #except:
           #sys.stderr.write('ERROR in getJsonObj. obj=' + str(obj) + '\n')
-	  #sys.exit(1)
+          #sys.exit(1)
 #
 def parseCmdLine():
     parser = argparse.ArgumentParser(description='Dumps basic gene information to a JSON file.')
@@ -216,15 +215,15 @@ def main(args):
     }
     ##
     qs = [
-	('gene', mouseGenes),
-	('synonyms', mouseSynonyms),
-	('expressed', mouseExpressedGenes),
-	('expressedImages', mouseExpressedGenesWithImages),
-	('location', mouseLocations),
-	('proteinIds', mouseProteinIds),
-	('xrefs', mouseXrefs),
-	('pantherId', mousePantherIds),
-	('myGeneLink', mouseMyGeneLinks),
+        ('gene', mouseGenes),
+        ('synonyms', mouseSynonyms),
+        ('expressed', mouseExpressedGenes),
+        ('expressedImages', mouseExpressedGenesWithImages),
+        ('location', mouseLocations),
+        ('proteinIds', mouseProteinIds),
+        ('xrefs', mouseXrefs),
+        ('pantherId', mousePantherIds),
+        ('myGeneLink', mouseMyGeneLinks),
     ]
 
     id2gene = {}
@@ -238,36 +237,36 @@ def main(args):
                 obj = id2gene.get(r['primaryIdentifier'], None)
                 if obj:
                     obj.setdefault(label,[]).append(r)
-    print '{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(MOUSEMINE), indent=2)
+    print('{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(MOUSEMINE), indent=2))
     first=True
     for i in id2gene:
         obj = id2gene[i]
-        if not first: print ',',
-        print json.dumps(getJsonObj(obj), indent=2)
+        if not first: print(',', end=' ')
+        print(json.dumps(getJsonObj(obj), indent=2))
         first = False
-    print ']\n}'
+    print(']\n}')
 
     '''
     qs2 = []
     for label, q in qs:
         qiter = doQuery (q % qmods, MOUSEMINE)
-	qiter = itertools.groupby(qiter, lambda x: x['primaryIdentifier'])
-	qiter = itertools.imap(lambda x, y=label: (x[0], y, list(x[1])), qiter)
-	qs2.append(qiter)
+        qiter = itertools.groupby(qiter, lambda x: x['primaryIdentifier'])
+        qiter = itertools.imap(lambda x, y=label: (x[0], y, list(x[1])), qiter)
+        qs2.append(qiter)
 
     print '{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(MOUSEMINE), indent=2)
     first=True
     for x in itertools.groupby(heapq.merge(*qs2), lambda x: x[0]):
       obj = { 'mgiid' : x[0] }
       for y in list(x[1]):
-	if y[1] == 'gene':
-	    # copy in all the basic gene attrs (symbol, name, etc)
-	    obj.update(y[2][0])
-	elif y[1] == 'synonyms':
-	    # make a simple list of synonyms
-	    obj['synonyms'] = map(lambda x: x['synonyms.value'], y[2])
-	else:
-	    obj[y[1]] = y[2]
+        if y[1] == 'gene':
+            # copy in all the basic gene attrs (symbol, name, etc)
+            obj.update(y[2][0])
+        elif y[1] == 'synonyms':
+            # make a simple list of synonyms
+            obj['synonyms'] = map(lambda x: x['synonyms.value'], y[2])
+        else:
+            obj[y[1]] = y[2]
 
       if not obj.get("primaryIdentifier"):
         continue
@@ -287,8 +286,8 @@ mouseGenes = '''
         Gene.name
         Gene.description
         Gene.sequenceOntologyTerm.identifier
-	Gene.chromosome.primaryIdentifier
-	"
+        Gene.chromosome.primaryIdentifier
+        "
       sortOrder="Gene.primaryIdentifier asc"
       >
       %(extraConstraint)s
@@ -304,8 +303,8 @@ mouseSynonyms = '''
       model="genomic"
       view="
         Gene.primaryIdentifier
-	Gene.synonyms.value
-	"
+        Gene.synonyms.value
+        "
       sortOrder="Gene.primaryIdentifier asc Gene.synonyms.value asc"
       >
       %(extraConstraint)s
@@ -320,11 +319,11 @@ mouseLocations = '''
       model="genomic"
       view="
         Gene.primaryIdentifier
-	Gene.chromosomeLocation.locatedOn.primaryIdentifier
-	Gene.chromosomeLocation.start
-	Gene.chromosomeLocation.end Gene.chromosomeLocation.strand
-	Gene.chromosomeLocation.assembly
-	"
+        Gene.chromosomeLocation.locatedOn.primaryIdentifier
+        Gene.chromosomeLocation.start
+        Gene.chromosomeLocation.end Gene.chromosomeLocation.strand
+        Gene.chromosomeLocation.assembly
+        "
       sortOrder="Gene.primaryIdentifier asc"
       >
       %(extraConstraint)s
@@ -339,8 +338,8 @@ mouseProteinIds = '''
       model="genomic"
       view="
         Gene.primaryIdentifier
-	Gene.proteins.uniprotAccession
-	"
+        Gene.proteins.uniprotAccession
+        "
       sortOrder="Gene.primaryIdentifier asc Gene.proteins.uniprotAccession asc"
       >
       %(extraConstraint)s
@@ -355,7 +354,7 @@ mouseExpressedGenes = '''
       model="genomic"
       view="
         Gene.primaryIdentifier
-	"
+        "
       sortOrder="Gene.primaryIdentifier asc"
       >
       %(extraConstraint)s
@@ -371,7 +370,7 @@ mouseExpressedGenesWithImages = '''
       model="genomic"
       view="
         Gene.primaryIdentifier
-	"
+        "
       sortOrder="Gene.primaryIdentifier asc"
       >
       %(extraConstraint)s
@@ -387,9 +386,9 @@ mouseXrefs = '''
       model="genomic"
       view="
         Gene.primaryIdentifier
-	Gene.crossReferences.source.name
-	Gene.crossReferences.identifier
-	"
+        Gene.crossReferences.source.name
+        Gene.crossReferences.identifier
+        "
       sortOrder="Gene.primaryIdentifier asc"
       >
       %(extraConstraint)s
@@ -404,8 +403,8 @@ mousePantherIds = '''
       model="genomic"
       view="
         Gene.primaryIdentifier
-	Gene.homologues.crossReferences.identifier
-	"
+        Gene.homologues.crossReferences.identifier
+        "
       sortOrder="Gene.primaryIdentifier asc"
       >
       %(extraConstraint)s
@@ -423,10 +422,10 @@ mouseMyGeneLinks = '''
       model="genomic"
       view="
         Gene.primaryIdentifier
-	Gene.homologues.homologue.primaryIdentifier
-	Gene.homologues.homologue.symbol
-	Gene.homologues.homologue.crossReferences.identifier
-	"
+        Gene.homologues.homologue.primaryIdentifier
+        Gene.homologues.homologue.symbol
+        Gene.homologues.homologue.crossReferences.identifier
+        "
       sortOrder="Gene.primaryIdentifier asc"
       >
       %(extraConstraint)s
