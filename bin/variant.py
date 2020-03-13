@@ -67,10 +67,10 @@ def getJsonObj(r) :
     # In AGR, the genomic sequence contains just the deleted part, the variant sequence is 'N/A',
     # and the padding base is stored separately.
     if len(rr["genomicVariantSequence"]) != 1:
-      log("Skipping deletion because var seq len != 1: " + str(rr))
+      log("\nSkipping deletion because var seq len != 1: " + str(rr))
       return None
     if rr["genomicReferenceSequence"][0] != rr["genomicVariantSequence"]:
-      log("Skipping deletion because cannot compute padding base: " + str(rr))
+      log("\nSkipping deletion because cannot compute padding base: " + str(rr))
       return None
     rr["paddedBase"] = rr["genomicVariantSequence"]
     rr["genomicVariantSequence"] = "N/A"
@@ -82,10 +82,10 @@ def getJsonObj(r) :
     # In AGR, the variant sequence contains just the inserted part, the genomic sequence is 'N/A',
     # and the padding base is stored separately.
     if len(rr["genomicReferenceSequence"]) != 1:
-      log("Skipping insertion because genomic seq len != 1: " + str(rr))
+      log("\nSkipping insertion because genomic seq len != 1: " + str(rr))
       return None
     if rr["genomicReferenceSequence"] != rr["genomicVariantSequence"][0]:
-      log("Skipping insertion because cannot compute padding base: " + str(rr))
+      log("\nSkipping insertion because cannot compute padding base: " + str(rr))
       return None
     rr["paddedBase"] = rr["genomicReferenceSequence"]
     rr["genomicReferenceSequence"] = "N/A"
@@ -96,7 +96,7 @@ def getJsonObj(r) :
   elif vtype == "SO:1000008":
     # point mutation
     if len(rr["genomicReferenceSequence"]) != 1 or len(rr["genomicVariantSequence"]) != 1:
-      log("Skipping point mutation because of lengths. " + str(rr))
+      log("\nSkipping point mutation because of lengths. " + str(rr))
       return None
   else:
     # error
@@ -136,7 +136,7 @@ def main () :
           j = getJsonObj(x)
           if not j: continue
       except:
-          log("Skipping variant because of error: key=" +x['_variant_key'] + " " + str(x))
+          log("\nSkipping variant because of error: key=" +x['_variant_key'] + " " + str(x))
           log("Error=" + str(sys.exc_info()[1]))
           continue
       if n > 0: sys.stdout.write(",")
@@ -144,7 +144,8 @@ def main () :
           sys.stdout.write(json.dumps(j, indent=2))
           n += 1
       except:
-          log("Skipping variant because of encoding error: key=" +x['_variant_key'] + " " + str(j))
+          log("\nSkipping variant because of encoding error: key=" +x['_variant_key'] + " " + str(j))
+          log("Error=" + str(sys.exc_info()[1]))
     print("]}")
 
 #
