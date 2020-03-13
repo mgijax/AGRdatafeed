@@ -241,7 +241,7 @@ def main(args):
     first=True
     for i in id2gene:
         obj = id2gene[i]
-        if not first: print(',', end=' ')
+        if not first: print(',', end='')
         print(json.dumps(getJsonObj(obj), indent=2))
         first = False
     print(']\n}')
