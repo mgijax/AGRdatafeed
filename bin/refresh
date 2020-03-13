@@ -16,6 +16,8 @@ DO_UPLOAD=""
 TOKEN_FILE=""
 NO_RUN=""
 PYTHON="python3"
+# the agr_validator requires python2.7
+PYTHON2="python2.7"
 
 # ---------------------
 function usage {
@@ -140,7 +142,7 @@ function validate {
   if [[ ${NO_RUN} ]] ; then
     return
   fi
-  ${PYTHON} ${VALIDATOR_DIR}/agr_validate.py -s ${VALIDATOR_DIR}/${vschema} -d ${FILE}
+  ${PYTHON2} ${VALIDATOR_DIR}/agr_validate.py -s ${VALIDATOR_DIR}/${vschema} -d ${FILE}
   checkExit 
 }
 # ---------------------
