@@ -169,7 +169,8 @@ def sql (query):
     #
     labels = None
     for line in proc.stdout:
-        toks = line[:-1].split(b'|')
+        line = line.decode('utf-8')
+        toks = line[:-1].split('|')
         if labels is None:
             labels = toks
         elif len(toks) == len(labels):
