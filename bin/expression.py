@@ -58,33 +58,33 @@ assayType2mmo = dict([
 # mappings from high level EMAPA terms to UBERON terms
 # mappings from: https://docs.google.com/spreadsheets/d/1_UcKTq7y-wsQ83_kJlP6X5mQdgKykaPWlDdkZzCuygI/edit#gid=313336440
 uberonEmapaTbl = [row.split('\t') for row in ('''
-UBERON:0001009  EMAPA:16104     cardiovascular system
-UBERON:0005409  EMAPA:16246     alimentary system
-UBERON:0000949  EMAPA:35306     endocrine system
-UBERON:0001008  EMAPA:17366     urinary system
-UBERON:0002330  EMAPA:35329     exocrine system
-UBERON:0002193  EMAPA:18765     hemolymphoid system
-UBERON:0002416  EMAPA:17524     integumental system
-UBERON:0002423  EMAPA:16840     liver and biliary system
-UBERON:0002204  EMAPA:32714     musculoskeletal system
-UBERON:0001016  EMAPA:16469     nervous system
-UBERON:0000990  EMAPA:17381     reproductive system
-UBERON:0001004  EMAPA:16727     respiratory system
-UBERON:0001032  EMAPA:16192     sensory organ system
-UBERON:0005726  EMAPA:36004     olfactory system
-UBERON:0005726  EMAPA:36885     gustatory system
-UBERON:0007037  N/A
-UBERON:0002105  EMAPA:37985     vestibulo-auditory system
-UBERON:0002104  EMAPA:36003     visual system
-UBERON:0000924  EMAPA:35985     ectoderm
-UBERON:0000925  EMAPA:35986     endoderm
-UBERON:0000926  EMAPA:35987     mesoderm
-UBERON:0003104  EMAPA:16097     mesenchyme
-UBERON:0001013  EMAPA:35112     adipose tissue
-UBERON:0000026  EMAPA:37283     appendage
-UBERON:0016887  EMAPA:16042     extraembryonic component
-UBERON:6005023  N/A
-UBERON:0002539  EMAPA:16117     branchial arch
+UBERON:0001009\tEMAPA:16104\tcardiovascular system
+UBERON:0005409\tEMAPA:16246\talimentary system
+UBERON:0000949\tEMAPA:35306\tendocrine system
+UBERON:0001008\tEMAPA:17366\turinary system
+UBERON:0002330\tEMAPA:35329\texocrine system
+UBERON:0002193\tEMAPA:18765\themolymphoid system
+UBERON:0002416\tEMAPA:17524\tintegumental system
+UBERON:0002423\tEMAPA:16840\tliver and biliary system
+UBERON:0002204\tEMAPA:32714\tmusculoskeletal system
+UBERON:0001016\tEMAPA:16469\tnervous system
+UBERON:0000990\tEMAPA:17381\treproductive system
+UBERON:0001004\tEMAPA:16727\trespiratory system
+UBERON:0001032\tEMAPA:16192\tsensory organ system
+UBERON:0005726\tEMAPA:36004\tolfactory system
+UBERON:0005726\tEMAPA:36885\tgustatory system
+UBERON:0007037\tN/A
+UBERON:0002105\tEMAPA:37985\tvestibulo-auditory system
+UBERON:0002104\tEMAPA:36003\tvisual system
+UBERON:0000924\tEMAPA:35985\tectoderm
+UBERON:0000925\tEMAPA:35986\tendoderm
+UBERON:0000926\tEMAPA:35987\tmesoderm
+UBERON:0003104\tEMAPA:16097\tmesenchyme
+UBERON:0001013\tEMAPA:35112\tadipose tissue
+UBERON:0000026\tEMAPA:37283\tappendage
+UBERON:0016887\tEMAPA:16042\textraembryonic component
+UBERON:6005023\tN/A
+UBERON:0002539\tEMAPA:16117\tbranchial arch
 '''.strip().split('\n'))]
 
 # index the table
