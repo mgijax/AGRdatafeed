@@ -265,7 +265,7 @@ def applyConversions(a, okind, skind):
 def setAnnotationDate(a, skind):
     d = None
     for e in a["evidence"]:
-        if d is None or e["evidence.annotationDate"] < d:
+        if d is None or (e["evidence.annotationDate"] and e["evidence.annotationDate"] < d):
             d = e["evidence.annotationDate"]
     for ba in a.get("baseAnnots", []):
         bd = ba["baseAnnotations.evidence.annotationDate"]
