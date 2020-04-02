@@ -158,9 +158,13 @@ def getTimeStamp(s = None):
 PSQL = None
 def sql (query):
     global PSQL
+    cfg = getConfig()
     if PSQL is None:
-        PSQL = getConfig().get("DEFAULT","PSQL")
-    cmd = (PSQL + " -A -U mgd_public -h mgi-adhoc.jax.org mgd -c").split()
+        PSQL = cfg.get("DEFAULT","PSQL")
+    user = cfg.get("DEFAULT","PSQL_USER")
+    host = cfg.get("DEFAULT","PSQL_HOST")
+    database = cfg.get("DEFAULT","PSQL_DATABASE")
+    cmd = (PSQL + " -A -U %s -h %s %s -c" %(user,host,database)).split()
     cmd.append(query)
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
     #
