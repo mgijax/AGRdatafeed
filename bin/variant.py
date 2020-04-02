@@ -60,19 +60,21 @@ def getJsonObj(r) :
     "references" : [{"publicationId" : x} for x in r['refs']]
   })
   #
+  grs = rr["genomicReferenceSequence"]
+  gvs = rr["genomicVariantSequence"]
   if vtype == "SO:0000159":
     # deletion
     # In MGI, the coding convention for deletions is that the genomic sequence contains the 
     # deleted part plus a padding base, while the variant sequence contains just the padding base.
     # In AGR, the genomic sequence contains just the deleted part, the variant sequence is 'N/A',
     # and the padding base is stored separately.
-    if len(rr["genomicVariantSequence"]) != 1:
+    if len(gvs) != 1:
       log("\nSkipping deletion because var seq len != 1: " + str(rr))
       return None
-    if rr["genomicReferenceSequence"][0] != rr["genomicVariantSequence"]:
+    if grs[0] != gvs:
       log("\nSkipping deletion because cannot compute padding base: " + str(rr))
       return None
-    rr["paddedBase"] = rr["genomicVariantSequence"]
+    rr["paddedBase"] = gvs
     rr["genomicVariantSequence"] = "N/A"
     rr["genomicReferenceSequence"] = rr["genomicReferenceSequence"][1:]
   elif vtype == "SO:0000667":
@@ -81,21 +83,26 @@ def getJsonObj(r) :
     # inserted part plus a padding base, while the genomic sequence contains just the padding base.
     # In AGR, the variant sequence contains just the inserted part, the genomic sequence is 'N/A',
     # and the padding base is stored separately.
-    if len(rr["genomicReferenceSequence"]) != 1:
+    if len(grs) != 1:
       log("\nSkipping insertion because genomic seq len != 1: " + str(rr))
       return None
-    if rr["genomicReferenceSequence"] != rr["genomicVariantSequence"][0]:
+    if grs != gvs[0]:
       log("\nSkipping insertion because cannot compute padding base: " + str(rr))
       return None
-    rr["paddedBase"] = rr["genomicReferenceSequence"]
+    rr["paddedBase"] = grs
     rr["genomicReferenceSequence"] = "N/A"
-    rr["genomicVariantSequence"] = rr["genomicVariantSequence"][1:]
+    rr["genomicVariantSequence"] = gvs[1:]
   elif vtype == "SO:0002007":
     # MNV
-    pass
+    if len(grs) != len(gvs):
+      log("\nSkipping MNV because lengths are != : " + str(rr))
+      return None
+  elif vtype == "SO:1000032":
+     # delins
+     pass
   elif vtype == "SO:1000008":
     # point mutation
-    if len(rr["genomicReferenceSequence"]) != 1 or len(rr["genomicVariantSequence"]) != 1:
+    if len(grs) != 1 or len(gvs) != 1:
       log("\nSkipping point mutation because of lengths. " + str(rr))
       return None
   else:
