@@ -133,16 +133,18 @@ def getJsonObj(obj):
   isTgAllele = obj["alleleType"] == "Transgenic"
   isTgMarker = obj["feature.mgiType"] == "transgene"
   ###
+  gene = None if isTgAllele and isTgMarker else obj["feature.primaryIdentifier"]
+  aor = None if not gene else [{"objectRelation": {"associationType":"allele_of","gene":gene }}]
+  #
   return stripNulls({
     "primaryId"         : obj["primaryIdentifier"],
     "symbol"            : insertSups(obj["symbol"]),
     "symbolText"        : obj["symbol"],
     "taxonId"           : GLOBALTAXONID,
-    "gene"              : None if isTgAllele and isTgMarker else obj["feature.primaryIdentifier"],
     "synonyms"          : syns,
     "secondaryIds"      : [],
     "crossReferences"   : formatXrefs(obj),
-    "constructInsertionType" : "Transgenic Insertion" if isTgAllele else None,
+    "alleleObjectRelations": aor,
     "description" : obj["molecularNote"]
   })
 
