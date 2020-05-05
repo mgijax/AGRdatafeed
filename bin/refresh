@@ -142,7 +142,10 @@ function validate {
   if [[ ${NO_RUN} ]] ; then
     return
   fi
-  ${PYTHON2} ${VALIDATOR_DIR}/agr_validate.py -s ${VALIDATOR_DIR}/${vschema} -d ${FILE}
+  #
+  # ASSUMES the validor is checked out to the correct schema version!
+  #
+  ${PYTHON2} ${VALIDATOR_DIR}/bin/agr_validate.py -s ${VALIDATOR_DIR}/${vschema} -d ${FILE}
   checkExit 
 }
 # ---------------------
