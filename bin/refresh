@@ -145,7 +145,11 @@ function validate {
   #
   # ASSUMES the validor is checked out to the correct schema version!
   #
-  ${PYTHON2} ${VALIDATOR_DIR}/bin/agr_validate.py -s ${VALIDATOR_DIR}/${vschema} -d ${FILE}
+  if [[ ${LOGFILE} ]]; then
+      ${PYTHON2} ${VALIDATOR_DIR}/bin/agr_validate.py -s ${VALIDATOR_DIR}/${vschema} -d ${FILE} >>${LOGFILE} 2>&1
+  else
+      ${PYTHON2} ${VALIDATOR_DIR}/bin/agr_validate.py -s ${VALIDATOR_DIR}/${vschema} -d ${FILE}
+  fi
   checkExit 
 }
 # ---------------------
