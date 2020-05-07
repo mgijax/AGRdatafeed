@@ -145,11 +145,7 @@ function validate {
   #
   # ASSUMES the validor is checked out to the correct schema version!
   #
-  if [[ ${LOGFILE} ]]; then
-      ${PYTHON2} ${VALIDATOR_DIR}/bin/agr_validate.py -s ${VALIDATOR_DIR}/${vschema} -d ${FILE} >>${LOGFILE} 2>&1
-  else
-      ${PYTHON2} ${VALIDATOR_DIR}/bin/agr_validate.py -s ${VALIDATOR_DIR}/${vschema} -d ${FILE}
-  fi
+  ${PYTHON2} ${VALIDATOR_DIR}/bin/agr_validate.py -s ${VALIDATOR_DIR}/${vschema} -d ${FILE}
   checkExit 
 }
 # ---------------------
@@ -213,8 +209,8 @@ function doPart {
   fi
 }
 
+# ---------------------------------------
 function parseCommandLine {
-    # ---------------------
     # Process command line args
     until [ -z "$1" ] 
     do
@@ -289,6 +285,17 @@ function parseCommandLine {
 }
 
 
+function doParts {
+    doPart "g" "BGI" "basicGeneInfo.py" "ingest/gene/geneMetaData.json" '"primaryId"' "BGI"
+    doPart "a" "allele" "alleleInfo.py" "ingest/allele/alleleMetaData.json" '"primaryId"' "ALLELE"
+    doPart "e" "expression" "expression.py" "ingest/expression/wildtypeExpressionMetaDataDefinition.json" '"geneId"' "EXPRESSION"
+    doPart "p" "phenotype" "diseasePheno.py -p" "ingest/phenotype/phenotypeMetaDataDefinition.json" '"objectId"' "PHENOTYPE"
+    doPart "d" "disease" "diseasePheno.py -d" "ingest/disease/diseaseMetaDataDefinition.json" '"DOid"' "DAF"
+    doPart "f" "GFF" "http://www.informatics.jax.org/downloads/mgigff3/MGI.agr.gff3.gz" "" "curie=" "GFF"
+    doPart "v" "variant" "variant.py" "ingest/allele/variantMetaData.json" "" "VARIATION"
+    doPart "y" "AGM" "genotype.py" "ingest/affectedGenomicModel/affectedGenomicModelMetaData.json" "primaryID" "AGM"
+}
+
 function main {
     #
     parseCommandLine $*
@@ -309,14 +316,11 @@ function main {
     mkdir -p ${ODIR}
     checkExit
 
-    doPart "g" "BGI" "basicGeneInfo.py" "ingest/gene/geneMetaData.json" '"primaryId"' "BGI"
-    doPart "a" "allele" "alleleInfo.py" "ingest/allele/alleleMetaData.json" '"primaryId"' "ALLELE"
-    doPart "e" "expression" "expression.py" "ingest/expression/wildtypeExpressionMetaDataDefinition.json" '"geneId"' "EXPRESSION"
-    doPart "p" "phenotype" "diseasePheno.py -p" "ingest/phenotype/phenotypeMetaDataDefinition.json" '"objectId"' "PHENOTYPE"
-    doPart "d" "disease" "diseasePheno.py -d" "ingest/disease/diseaseMetaDataDefinition.json" '"DOid"' "DAF"
-    doPart "f" "GFF" "http://www.informatics.jax.org/downloads/mgigff3/MGI.agr.gff3.gz" "" "curie=" "GFF"
-    doPart "v" "variant" "variant.py" "ingest/allele/variantMetaData.json" "" "VARIATION"
-    doPart "y" "AGM" "genotype.py" "ingest/affectedGenomicModel/affectedGenomicModelMetaData.json" "primaryID" "AGM"
+    if [[ ${LOGFILE} ]]; then
+        doParts >>${LOGFILE} 2>1
+    else
+        doParts
+    fi
 
     logit "Finished."
 }
