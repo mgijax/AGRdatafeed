@@ -61,7 +61,7 @@ def getOptions ():
     dest='format',
     metavar="FORMAT",
     choices=['json','tab'],
-    help="Output format.")
+    help="Output format: %(choices)s")
   args = parser.parse_args()
   if args.modified:
     m = args.modified
