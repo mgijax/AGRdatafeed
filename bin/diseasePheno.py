@@ -146,7 +146,7 @@ def annotations(url, okind, skind, ids = None):
           for n,e in enumerate(rr["invevidence"]):
               rr["agrevidence"] = e
               rr["agrbaseannots"] = rr["invbaseannots"][n]
-              yield formatDafJsonRecord(rr, "disease" if okind == "DOTerm" else "phenotype")
+              yield formatDafJsonRecord(rr, "disease" if okind == "DOTerm" else "phenotype", skind)
 
 ########
 # Applies various transformations to a 'raw' annotation returned from the db to prepare it
@@ -163,10 +163,6 @@ geno2genes = {}   # genotype->rolled up genes index
 gene2term = {} # gene id -> set of disease or phenotype ids
 def applyConversions(a, okind, skind):
     global geno2genes
-    #
-    # "not" is the only recognized qualifier for 1.0
-    if not 'qualifier' in a:
-      print('\n\nERROR:', a)
 
     # screen out "normal" phenotype annotations
     # but allow "not" disease annotations. Not sure why the alliance 
@@ -274,6 +270,26 @@ def setAnnotationDate(a, skind):
     a["annotationDate"] = getTimeStamp(d)
 
 #
+def buildDataProviderObject(a, kind, skind):
+    if kind != "disease":
+        raise RuntimeError("Cannot build data provider object for this kind: " + kind)
+    ident = a["subject.primaryIdentifier"]
+    if skind == "SequenceFeature":
+        page = "gene"
+    elif skind == "Allele":
+        page = "allele"
+    elif skind == "Genotype":
+        page = "genotype"
+    else:
+        raise RuntimeError("Cannot build data provider object for this skind: " + skind)
+    return {
+        "crossReference" : {
+            "id" : ident,
+            "pages" : [page]
+        },
+        "type" : "curated"
+    }
+#
 def log (s):
     sys.stderr.write(s + '\n')
 
@@ -283,7 +299,7 @@ def log (s):
 #    annot
 #    kind (string) Either "disease" or "phenotype"
 #
-def formatDafJsonRecord (annot, kind):
+def formatDafJsonRecord (annot, kind, skind):
     #
     annot["primaryGeneticEntityIDs"] = []
     try:
@@ -293,7 +309,7 @@ def formatDafJsonRecord (annot, kind):
             'objectName':                   annot["objectName"],
             'objectRelation':               annot["objectRelation"],
             #'experimentalConditions':      [],
-            'qualifier':                    annot["qualifier"],
+            'negation':                     annot["qualifier"],
             'DOid':                         annot["ontologyTerm.identifier"],
             #'with':                        [],
             #'modifier':                    None,
@@ -301,7 +317,7 @@ def formatDafJsonRecord (annot, kind):
             'primaryGeneticEntityIDs':      annot["agrbaseannots"],
             #'geneticSex':                  '',
             'dateAssigned':                 annot["annotationDate"],
-            'dataProvider':                 [ buildMgiDataProviderObject() ],
+            'dataProvider':                 [ buildDataProviderObject(annot, kind, skind) ],
         })
       else:
         # guard against data issue: MP record w/o a name. 
