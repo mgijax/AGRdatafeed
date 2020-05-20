@@ -126,10 +126,13 @@ def makePubRef (pubmedId, mgiId) :
     pid = mgiId
   #
   if pid:
-    return {
-      "publicationId" : pid,
-      "crossReference" : {"id":mgiId ,"pages":["reference"]}
-    }
+    if mgiId:
+        return {
+          "publicationId" : pid,
+          "crossReference" : {"id":mgiId ,"pages":["reference"]}
+        }
+    else:
+        return { "publicationId" : pid }
   else:
     return None
 

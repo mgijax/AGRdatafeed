@@ -222,6 +222,10 @@ def getExpressionData(url, ids):
       #
   log('getExpressionData: %d results => %d unique results' % (qcount, ycount))
 
+#
+def getWhereExpressedObj (eid) :
+    pass
+
 # Here is the magic by which an object returned by the query is converted to an object
 # conforming to the spec.
 #
@@ -322,4 +326,5 @@ def main():
       log('No UBERON mapping for: %s %s' % p)
 
 #
-main()
+if __name__ == "__main__":
+    main()
