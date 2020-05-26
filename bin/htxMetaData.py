@@ -121,14 +121,19 @@ def getHTdata (kind):
     eid2refs = getReferences(MOUSEMINE)
     eid2vars = getVariables(MOUSEMINE)
     for e in getExperiments(MOUSEMINE):
-        e['samples'] = eid2samples.get(e['experimentId'],[])
-        e['variables'] = eid2vars.get(e['experimentId'],[])
-        e['references'] = eid2refs.get(e['experimentId'],[])
-
+        eid = e['experimentId']
+        e['samples'] = eid2samples.get(eid,[])
+        e['variables'] = eid2vars.get(eid,[])
+        e['references'] = eid2refs.get(eid,[])
+        e['curationDate'] = getTimeStamp(e['curationDate'])
+        #
+        e['experimentId'] = "ArrayExpress:" + eid
+        #
         if kind == "experiments":
             yield getExptJsonObj(e)
         else:
             for s in e['samples']:
+                s['experimentId'] = e['experimentId']
                 s['curationDate'] = e['curationDate']
                 yield getSampleJsonObj(s)
             
