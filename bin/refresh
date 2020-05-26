@@ -42,6 +42,7 @@ Options:
 	v	Allele variant info
 	y	Genotype info
 	e	Wildtype expression data
+        h       High-throughput index metadata
 	p	Phenotype annotations
 	d	Disease annotations
 	f	GFF3 gene models
@@ -147,6 +148,7 @@ function validate {
   #
   ${PYTHON2} ${VALIDATOR_DIR}/bin/agr_validate.py -s ${VALIDATOR_DIR}/${vschema} -d ${FILE}
   checkExit 
+  logit "Validated: ${FILE}"
 }
 # ---------------------
 # Report stats
@@ -181,6 +183,7 @@ function upload {
       -X POST "https://fms.alliancegenome.org/api/data/submit" \
       -F "${RELEASE_VERSION}_${aftype}_MGI=@${FILE}"
   checkExit
+  logit "Uploaded: ${FILE}"
 }
 
 # ---------------------------------------
@@ -289,8 +292,8 @@ function doParts {
     doPart "g" "BGI" "basicGeneInfo.py" "ingest/gene/geneMetaData.json" '"primaryId"' "BGI"
     doPart "a" "allele" "alleleInfo.py" "ingest/allele/alleleMetaData.json" '"primaryId"' "ALLELE"
     doPart "e" "expression" "expression.py" "ingest/expression/wildtypeExpressionMetaDataDefinition.json" '"geneId"' "EXPRESSION"
-    doPart "h" "htExperiment" "htxMetaData.py -d experiments" "ingest/htp/dataset/datasetMetaDataDefinition.json" '"experimentId"' "HTEXPERIMENT"
-    doPart "h" "htSample" "htxMetaData.py -d samples" "ingest/htp/datasetSample/datasetSampleMetaDataDefinition.json" '"experimentId"' "HTSAMPLE"
+    doPart "h" "htExperiment" "htxMetaData.py -d experiments" "ingest/htp/dataset/datasetMetaDataDefinition.json" '"experimentId"' "HTPDATASET"
+    doPart "h" "htSample" "htxMetaData.py -d samples" "ingest/htp/datasetSample/datasetSampleMetaDataDefinition.json" '"experimentId"' "HTPDATASAMPLE"
     doPart "p" "phenotype" "diseasePheno.py -p" "ingest/phenotype/phenotypeMetaDataDefinition.json" '"objectId"' "PHENOTYPE"
     doPart "d" "disease" "diseasePheno.py -d" "ingest/disease/diseaseMetaDataDefinition.json" '"DOid"' "DAF"
     doPart "f" "GFF" "http://www.informatics.jax.org/downloads/mgigff3/MGI.agr.gff3.gz" "" "curie=" "GFF"

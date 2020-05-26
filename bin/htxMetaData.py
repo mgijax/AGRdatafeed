@@ -25,7 +25,6 @@ TIMESTAMP = getTimeStamp()
 cp = getConfig()
 
 MOUSEMINE     = cp.get("DEFAULT","MOUSEMINEURL")
-GLOBALTAXONID = cp.get("DEFAULT","GLOBALTAXONID")
 
 #-----------------------------------
 def parseCmdLine():
@@ -47,6 +46,7 @@ def getReferences(url):
         eid2refs.setdefault(r['experimentId'], []).append(r)
     return eid2refs
     
+#-----------------------------------
 def getVariables(url):
     eid2vars = {}
     for r in doQuery(htVariables, url):
@@ -54,12 +54,14 @@ def getVariables(url):
             eid2vars.setdefault(r['experimentId'], []).append(r)
     return eid2vars
     
+#-----------------------------------
 def getSamples(url):
     eid2samples = {}
     for r in doQuery(htSamples, url):
         eid2samples.setdefault(r['experimentId'], []).append(r)
     return eid2samples
 
+#-----------------------------------
 def getExperiments (url) :
     for r in doQuery(htExperiments, url):
         yield r
@@ -70,6 +72,7 @@ def getCatTags (obj) :
     vs += [ v["variables.name"] for v in obj["variables"]]
     return vs
 
+#-----------------------------------
 def getSex (obj) :
     # Male, Female, Pooled, Not Specified
     #  =>
@@ -78,6 +81,7 @@ def getSex (obj) :
         return "unknown"
     return obj["samples.sex"].lower()
 
+#-----------------------------------
 def getAssayType (exptType) :
     if exptType == "transcription profiling by array":
         return "MMO:0000648"
@@ -86,6 +90,7 @@ def getAssayType (exptType) :
     else:
         raise RuntimeError("Unknown experiment type: " + str(exptType))
 
+#-----------------------------------
 def getSampleJsonObj (obj) :
     return stripNulls({
         "sampleTitle" : obj["samples.name"],
@@ -94,11 +99,12 @@ def getSampleJsonObj (obj) :
         "sampleAge" : { "age" : obj["samples.age"] },
         "sampleLocation" : [ mkWhereExpressedObj(obj["samples.structure.identifier"], int(obj["samples.stage"])) ],
         "sex" : getSex(obj),
-        "taxonId" : GLOBALTAXONID,
+        "taxonId" : obj["samples.organism.taxonId"],
         "assemblyVersion" : [ "GRCm38.p6" ],
-        "dateAssigned" : TIMESTAMP, #FIXME
+        "dateAssigned" : obj['curationDate']
     })
 
+#-----------------------------------
 def getExptJsonObj(obj):
     return stripNulls({
         "datasetId" : { "primaryId" : obj["experimentId"] },
@@ -107,7 +113,7 @@ def getExptJsonObj(obj):
         "categoryTags" : getCatTags(obj),
         "publication" : [
             makePubRef(p["publications.pubMedId"], p["publications.mgiId"]) for p in obj["references"]],
-        "dateAssigned" : TIMESTAMP, #FIXME
+        "dateAssigned" : obj['curationDate']
     })
 #-----------------------------------
 def getHTdata (kind):
@@ -118,10 +124,12 @@ def getHTdata (kind):
         e['samples'] = eid2samples.get(e['experimentId'],[])
         e['variables'] = eid2vars.get(e['experimentId'],[])
         e['references'] = eid2refs.get(e['experimentId'],[])
+
         if kind == "experiments":
             yield getExptJsonObj(e)
         else:
             for s in e['samples']:
+                s['curationDate'] = e['curationDate']
                 yield getSampleJsonObj(s)
             
 #-----------------------------------
@@ -150,10 +158,12 @@ htExperiments = '''
             HTExperiment.studyType
             HTExperiment.source
             HTExperiment.description
+            HTExperiment.curationDate
             "
         >
     </query>
     '''
+#-----------------------------------
 htSamples = '''
     <query
         model="genomic"
@@ -167,10 +177,13 @@ htSamples = '''
             HTExperiment.samples.structure.identifier
             HTExperiment.samples.structure.name
             HTExperiment.samples.genotype.primaryIdentifier
+            HTExperiment.samples.organism.taxonId
             "
         >
+        <constraint path="HTExperiment.samples.organism.taxonId" op="=" value="10090"/>
     </query>
     '''
+#-----------------------------------
 htReferences = '''
     <query
         model="genomic"
@@ -183,6 +196,7 @@ htReferences = '''
     </query>
     '''
 
+#-----------------------------------
 htVariables = '''
     <query
         model="genomic"
