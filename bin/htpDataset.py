@@ -127,14 +127,16 @@ def getSampleJsonObj (obj) :
 #-----------------------------------
 def getExptJsonObj(obj):
     return stripNulls({
-        "datasetId" : { "primaryId" : "ArrayExpress:" + obj["experimentId"] },
+        "datasetId" : {
+            "primaryId" : "ArrayExpress:" + obj["experimentId"],
+            "crossReference" : { "id" : "MGI:" + obj["experimentId"], "pages": ["htp/dataset"] }
+        },
         "title" : obj["name"],
         "summary" : obj["description"],
         "categoryTags" : getCatTags(obj),
         "publication" : [
             makePubRef(p["publications.pubMedId"], p["publications.mgiId"]) for p in obj["references"]],
         "dateAssigned" : obj['curationDate'],
-        "crossReference" : { "id" : "MGI:" + obj["experimentId"], "pages": ["htp/dataset"] }
     })
 #-----------------------------------
 def main() :
