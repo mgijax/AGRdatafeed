@@ -12,6 +12,7 @@ import sys
 import subprocess
 
 
+#----------------------------------
 #
 def getConfig():
     from configparser import ConfigParser
@@ -23,10 +24,12 @@ def getConfig():
     return cp
 
 
+#----------------------------------
 # See: http://henry.precheur.org/projects/rfc3339 
 from rfc3339 import rfc3339
 date_re = re.compile(r'(\d\d\d\d)-(\d\d)-(\d\d)')
 
+#----------------------------------
 # The AGR spec is to leave out attributes that would otherwise have a null
 #   value or an empty list value.
 #  This function removes these from a Json obj.
@@ -41,6 +44,7 @@ def stripNulls(obj):
             stripNulls(v)
     return obj
 
+#----------------------------------
 #
 def buildMgiDataProviderObject () :
     return {
@@ -50,6 +54,7 @@ def buildMgiDataProviderObject () :
         },
         "type" : "curated"
     }
+#----------------------------------
 #
 def doInterMineQuery(q, url): 
     # sys.stderr.write('Intermine query=' + q + '\n')
@@ -62,6 +67,7 @@ def doInterMineQuery(q, url):
         yield toks
     fd.close()
 
+#----------------------------------
 # Returns the list of view paths from the given query.
 VIEW_re=re.compile(r'view="([^"]*)"')
 def getView (q, stripRoot=True):
@@ -73,6 +79,7 @@ def getView (q, stripRoot=True):
         view = ['.'.join(v.split('.')[1:]) for v in view]
     return view
 
+#----------------------------------
 # 
 def doQuery(q, url):
   view = getView(q)
@@ -80,6 +87,7 @@ def doQuery(q, url):
     return dict(list(zip(view, [f if f != '""' else None for f in row])))
   return map(makeObject, doInterMineQuery(q, url))
 
+#----------------------------------
 # Constructs and returns the metaData (header) for the dump file.
 #
 def buildMetaObject(mouseMineUrl):
@@ -106,6 +114,7 @@ def buildMetaObject(mouseMineUrl):
     "dateProduced" : currentDate,
     "release" : release
     }
+#----------------------------------
 #
 def makeOneOfConstraint(path, vals):
   cnst = ''
@@ -114,6 +123,7 @@ def makeOneOfConstraint(path, vals):
     cnst = '<constraint path="%s" op="ONE OF">%s</constraint>' % (path,cvals)
   return cnst
 
+#----------------------------------
 # Returns a PublicationRef which contains a publication id (required) and an optional xref
 # to the mod for that publication.
 # The publication id should be the pubmed id , if available. Otherwise, use the MOD pub id.

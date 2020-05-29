@@ -91,10 +91,30 @@ def getAssayType (exptType) :
         raise RuntimeError("Unknown experiment type: " + str(exptType))
 
 #-----------------------------------
+def getHTdata (kind):
+    eid2samples = getSamples(MOUSEMINE)
+    eid2refs = getReferences(MOUSEMINE)
+    eid2vars = getVariables(MOUSEMINE)
+    for e in getExperiments(MOUSEMINE):
+        eid = e['experimentId']
+        e['samples'] = eid2samples.get(eid,[])
+        e['variables'] = eid2vars.get(eid,[])
+        e['references'] = eid2refs.get(eid,[])
+        e['curationDate'] = getTimeStamp(e['curationDate'])
+        #
+        if kind == "experiments":
+            yield getExptJsonObj(e)
+        else:
+            for s in e['samples']:
+                s['experimentId'] = e['experimentId']
+                s['curationDate'] = e['curationDate']
+                yield getSampleJsonObj(s)
+            
+#-----------------------------------
 def getSampleJsonObj (obj) :
     return stripNulls({
         "sampleTitle" : obj["samples.name"],
-        "datasetId" : [ obj["experimentId"] ],
+        "datasetId" : [ "ArrayExpress:" + obj["experimentId"] ],
         "assayType" : getAssayType(obj["experimentType"]),
         "sampleAge" : { "age" : obj["samples.age"] },
         "sampleLocation" : [ mkWhereExpressedObj(obj["samples.structure.identifier"], int(obj["samples.stage"])) ],
@@ -107,36 +127,15 @@ def getSampleJsonObj (obj) :
 #-----------------------------------
 def getExptJsonObj(obj):
     return stripNulls({
-        "datasetId" : { "primaryId" : obj["experimentId"] },
+        "datasetId" : { "primaryId" : "ArrayExpress:" + obj["experimentId"] },
         "title" : obj["name"],
         "summary" : obj["description"],
         "categoryTags" : getCatTags(obj),
         "publication" : [
             makePubRef(p["publications.pubMedId"], p["publications.mgiId"]) for p in obj["references"]],
-        "dateAssigned" : obj['curationDate']
+        "dateAssigned" : obj['curationDate'],
+        "crossReference" : { "id" : "MGI:" + obj["experimentId"], "pages": ["htp/dataset"] }
     })
-#-----------------------------------
-def getHTdata (kind):
-    eid2samples = getSamples(MOUSEMINE)
-    eid2refs = getReferences(MOUSEMINE)
-    eid2vars = getVariables(MOUSEMINE)
-    for e in getExperiments(MOUSEMINE):
-        eid = e['experimentId']
-        e['samples'] = eid2samples.get(eid,[])
-        e['variables'] = eid2vars.get(eid,[])
-        e['references'] = eid2refs.get(eid,[])
-        e['curationDate'] = getTimeStamp(e['curationDate'])
-        #
-        e['experimentId'] = "ArrayExpress:" + eid
-        #
-        if kind == "experiments":
-            yield getExptJsonObj(e)
-        else:
-            for s in e['samples']:
-                s['experimentId'] = e['experimentId']
-                s['curationDate'] = e['curationDate']
-                yield getSampleJsonObj(s)
-            
 #-----------------------------------
 def main() :
     args = parseCmdLine()
