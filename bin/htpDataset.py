@@ -114,27 +114,32 @@ def getHTdata (kind):
 def getSampleJsonObj (obj) :
     return stripNulls({
         "sampleTitle" : obj["samples.name"],
-        "datasetId" : [ "ArrayExpress:" + obj["experimentId"] ],
+        "datasetIds" : [ "ArrayExpress:" + obj["experimentId"] ],
         "assayType" : getAssayType(obj["experimentType"]),
+        "sampleType": "OBI:0000880", # "RNA extract"
         "sampleAge" : { "age" : obj["samples.age"] },
-        "sampleLocation" : [ mkWhereExpressedObj(obj["samples.structure.identifier"], int(obj["samples.stage"])) ],
+        "sampleLocations" : [ mkWhereExpressedObj(obj["samples.structure.identifier"], int(obj["samples.stage"])) ],
         "sex" : getSex(obj),
         "taxonId" : obj["samples.organism.taxonId"],
-        "assemblyVersion" : [ "GRCm38.p6" ],
+        "assemblyVersions" : [ "GRCm38.p6" ],
         "dateAssigned" : obj['curationDate']
     })
 
 #-----------------------------------
 def getExptJsonObj(obj):
+    pid = "ArrayExpress:" + obj["experimentId"]
     return stripNulls({
         "datasetId" : {
-            "primaryId" : "ArrayExpress:" + obj["experimentId"],
-            "crossReference" : { "id" : "MGI:" + obj["experimentId"], "pages": ["htp/dataset"] }
+            "primaryId" : pid,
+            "crossReferences" : [
+                { "id" : "MGI:" + obj["experimentId"], "pages": ["htp/dataset"] },
+                { "id" : pid, "pages": ["htp/dataset"] },
+                ]
         },
         "title" : obj["name"],
         "summary" : obj["description"],
         "categoryTags" : getCatTags(obj),
-        "publication" : [
+        "publications" : [
             makePubRef(p["publications.pubMedId"], p["publications.mgiId"]) for p in obj["references"]],
         "dateAssigned" : obj['curationDate'],
     })
