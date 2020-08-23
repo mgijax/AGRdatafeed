@@ -57,7 +57,9 @@ def getJsonObj(r) :
     "type" : vtype,
     "consequence" : r["effect"],
     "sequenceOfReferenceAccessionNumber": "RefSeq:" + chr2accid[r["build"]][r["chromosome"]],
-    "references" : [{"publicationId" : x} for x in r['refs']]
+    "references" : [{"publicationId" : x} for x in r['refs']],
+    "note" : r["note"],
+    "crossReferences" : [{ "id" : r["allele_id"], "pages" : ["allele"] }]
   })
   #
   grs = rr["genomicReferenceSequence"]
@@ -133,6 +135,10 @@ def main () :
       rid = ('PMID:' + x['pubmedid']) if x['pubmedid'] else x['mgiid']
       vk2refs.setdefault(x['_variant_key'], []).append(rid)
 
+    vk2notes = {}
+    for x in sql(Q_VARIANT_NOTES):
+        vk2notes[x['_variant_key']] = { 'note' : x['note'] }
+
     n = 0
     print('{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(MOUSEMINE), indent=2))
     for x in sql(Q_VARIANTS):
@@ -140,6 +146,7 @@ def main () :
       x['type'] = vk2types.get(x['_variant_key'], None)
       x['effect'] = vk2effects.get(x['_variant_key'], None)
       x['refs'] = vk2refs.get(x['_variant_key'], [])
+      x['note'] = vk2notes.get(x['_variant_key'], None)
       try:
           j = getJsonObj(x)
           if not j: continue
@@ -184,6 +191,13 @@ Q_VARIANTS = '''
   order by v._variant_key
   '''
 
+#
+Q_VARIANT_NOTES = '''
+    select nc.note, n._object_key as _variant_key
+    from mgi_notechunk nc, mgi_note n
+    where nc._note_key = n._note_key
+    and n._notetype_key = 1051
+    '''
 #
 Q_TYPES = '''
   select
