@@ -121,6 +121,10 @@ def formatXrefs(obj):
         pgs.append("gene/expression")
     if obj.get('expressedImages', None):
         pgs.append("gene/expression_images")
+    if obj.get('hasPheno', False):
+        pgs.append('gene/phenotype')
+    if obj.get('hasImpc', False):
+        pgs.append('gene/phenotypes_impc')
     xrs.append({"id": obj["primaryIdentifier"], "pages":pgs })
     # add xref to MyGene page (if applicable)
     mgl = formatMyGeneLink(obj)
@@ -226,6 +230,14 @@ def main(args):
         ('myGeneLink', mouseMyGeneLinks),
     ]
 
+    hasPheno = set()
+    for r in doQuery(mouseHasPheno, MOUSEMINE):
+        hasPheno.add(r['primaryIdentifier'])
+
+    hasImpc = set()
+    for r in doQuery(mouseHasImpc, MOUSEMINE):
+        hasImpc.add(r['primaryIdentifier'])
+
     id2gene = {}
     for label, q in qs:
         if label == 'gene':
@@ -242,6 +254,8 @@ def main(args):
     for i in id2gene:
         obj = id2gene[i]
         if not first: print(',', end='')
+        obj["hasPheno"] = obj["primaryIdentifier"] in hasPheno
+        obj["hasImpc"] = obj["primaryIdentifier"] in hasImpc
         print(json.dumps(getJsonObj(obj), indent=2))
         first = False
     print(']\n}')
@@ -436,4 +450,22 @@ mouseMyGeneLinks = '''
     </query>
     '''
 
+mouseHasPheno = '''
+    <query 
+        model="genomic"
+        view="Gene.primaryIdentifier"
+        >
+        <constraint path="Gene.ontologyAnnotations.ontologyTerm" type="MPTerm"/>
+        <constraint path="Gene.ontologyAnnotations.ontologyTerm.identifier" op="IS NOT NULL"/>
+        </query>
+    '''
+
+mouseHasImpc = '''
+    <query
+        model="genomic"
+        view="Gene.primaryIdentifier"
+        >
+        <constraint path="Gene.alleles.projectCollection" op="=" value="IMPC"/>
+        </query>
+        '''
 main(parseCmdLine())
