@@ -92,6 +92,7 @@ def getJsonObj(r) :
     if grs != gvs[0]:
       log("\nSkipping insertion because cannot compute padding base: " + str(rr))
       return None
+    rr["end"] += 1
     rr["paddedBase"] = grs
     rr["genomicReferenceSequence"] = "N/A"
     rr["genomicVariantSequence"] = gvs[1:]
