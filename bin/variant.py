@@ -58,9 +58,11 @@ def getJsonObj(r) :
     "consequence" : r["effect"],
     "sequenceOfReferenceAccessionNumber": "RefSeq:" + chr2accid[r["build"]][r["chromosome"]],
     "references" : [{"publicationId" : x} for x in r['refs']],
-    "note" : r["note"],
     "crossReferences" : [{ "id" : r["allele_id"], "pages" : ["allele"] }]
   })
+  note = r["note"]
+  if note:
+      rr["notes"] = [ note ]
   #
   grs = rr["genomicReferenceSequence"]
   gvs = rr["genomicVariantSequence"]
