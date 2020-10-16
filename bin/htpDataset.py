@@ -58,7 +58,8 @@ def getVariables(url):
 def getSamples(url):
     eid2samples = {}
     for r in doQuery(htSamples, url):
-        eid2samples.setdefault(r['experimentId'], []).append(r)
+        rkey = (r["samples.name"],r["samples.age"],r["samples.sex"],r["samples.structure.identifier"])
+        eid2samples.setdefault(r['experimentId'], {})[rkey] = r
     return eid2samples
 
 #-----------------------------------
@@ -70,6 +71,10 @@ def getExperiments (url) :
 def getCatTags (obj) :
     vs = [ obj["studyType"] ] 
     vs += [ v["variables.name"] for v in obj["variables"]]
+    vs = list(map(lambda x: TAG_MAP.get(x, x), vs))
+    for x in vs:
+        if not x in TAGS:
+            sys.stderr.write('Tag not recognized: %s\n' % x)
     return vs
 
 #-----------------------------------
@@ -97,7 +102,7 @@ def getHTdata (kind):
     eid2vars = getVariables(MOUSEMINE)
     for e in getExperiments(MOUSEMINE):
         eid = e['experimentId']
-        e['samples'] = eid2samples.get(eid,[])
+        e['samples'] = (eid2samples.get(eid,{}).values())
         e['variables'] = eid2vars.get(eid,[])
         e['references'] = eid2refs.get(eid,[])
         e['curationDate'] = getTimeStamp(e['curationDate'])
@@ -126,15 +131,27 @@ def getSampleJsonObj (obj) :
     })
 
 #-----------------------------------
+GEO_re = re.compile('^E-GEOD-(\d+)$')
 def getExptJsonObj(obj):
+    # If it's a GEO experiment, also include the GEO id. We should get this from MouseMine,
+    # but MM doesn't have this. So construct it from the AE version of the ID. 
+    # Example: E-GEOD-33885 (ArrayExpress) -> GSE33885 (GEO)
     pid = "ArrayExpress:" + obj["experimentId"]
+    xrefs = [{ "id" : pid, "pages": ["htp/dataset"] }]
+    geoXref = None
+    geoidmatch = GEO_re.match(obj["experimentId"])
+    if geoidmatch:
+        geoid = 'GEO:GSE'+geoidmatch.group(1)
+        xrefs.append({ "id" : geoid, "pages": ["htp/dataset"] })
+
     return stripNulls({
         "datasetId" : {
             "primaryId" : pid,
-            "crossReferences" : [
-                { "id" : "MGI:" + obj["experimentId"], "pages": ["htp/dataset"] },
-                { "id" : pid, "pages": ["htp/dataset"] },
-                ]
+            "preferredCrossReference" : {
+                 "id" : "MGI:" + obj["experimentId"],
+                 "pages": ["htp/dataset"] ,
+            },
+            "crossReferences" : xrefs,
         },
         "title" : obj["name"],
         "summary" : obj["description"],
@@ -157,6 +174,124 @@ def main() :
     print("]}")
 
 
+#-----------------------------------
+TAGS=set('''
+age
+aging
+cell aging
+amino acid metabolism
+amino acid utilization
+anatomical structure
+baseline
+bioinformatics and computational biology
+biotic stimulus
+carbon utilization
+cell cycle
+cell morphogenesis
+cell type
+cell wall organization
+cellular ion homeostasis
+chemical stimulus
+chromatin organization
+chromosome segregation
+time of day
+cofactor metabolism
+colony morphology
+cytoskeleton and molecular motors
+dauer larval development
+developmental stage
+developmental time course
+diauxic shift
+disease
+DNA binding
+DNA damage stimulus
+DNA replication, recombination and repair
+dosage compensation
+embryo development
+environmental-sensing
+evolution
+fermentation
+filamentous growth
+flocculation
+gene silencing by miRNA
+gene
+genetic interaction
+genome variation
+genotype
+histone modification
+innate immune response
+lipid metabolic process
+mating
+metabolism
+metabolism and metabolic regulation
+metal or metalloid ion stress
+metal or metalloid ion utilization
+mitotic cell cycle
+mRNA processing
+mouse species
+natural variant
+nitrogen utilization
+nuclear structure and function
+nucleotide metabolism
+nutrient utilization
+subcellular component
+oxidative stress
+oxygen level alteration
+phosphorus utilization
+physical interaction
+physical stimulus
+ploidy
+pregnancy
+prions
+programmed cell death
+protein dephosphorylation
+protein glycosylation
+protein modification
+protein phosphorylation
+protein structure and folding
+protein trafficking, localization and degradation
+proteolysis
+QTL
+respiration
+response to osmotic stress
+response to radiation
+response to starvation
+response to temperature stimulus
+response to unfolded protein
+RNA catabolism
+RNA interference
+RNA processing and metabolism
+RNA structure
+RNAi gene function study
+sex
+signaling
+single cell variation
+space flight
+species
+sporulation
+stationary phase
+stationary phase entry
+stationary phase maintenance
+strain study
+stress
+sulfur utilization
+synthetic biology
+transcription
+transcriptional regulation
+transcriptome
+translational regulation
+transposons
+ubiquitin or ULP modification
+vulval development
+WT vs. mutant
+unclassified
+'''.strip().split('\n'))
+#-----------------------------------
+TAG_MAP = {
+    "WT vs. Mutant" : "WT vs. mutant",
+    "Baseline" : "baseline",
+    "mouse strain" : "strain study"
+}
 #-----------------------------------
 htExperiments = '''
     <query
