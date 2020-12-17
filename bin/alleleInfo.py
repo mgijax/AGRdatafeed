@@ -38,13 +38,26 @@ for n in cp.options("dataProviders"):
     dataProviders[n] = cp.get("dataProviders", n)
 
 #-----------------------------------
-# Constructs and returns the core of the query, suitable for any SequenceFeature subclass.
 #
 def buildAlleleQuery(url,ids):
     qopts = {
       'xtraConstraint': makeOneOfConstraint('Allele.feature.primaryIdentifier', ids)
     }
-    aid2syns = {}
+
+    # Query for alleles that have expressed component 
+    qexpressors = '''<query
+        model="genomic"
+        view="
+            MGIExpressesComponent.allele.primaryIdentifier
+            MGIExpressesComponent.allele.symbol
+            "
+        ></query>
+        '''
+    expressors = set()
+    for r in doQuery(qexpressors, url):
+        expressors.add(r['allele.primaryIdentifier'])
+
+    # Query allele synonyms, build index of id -> synonyms
     qsynonyms = '''<query
       model="genomic"
       view="
@@ -64,9 +77,11 @@ def buildAlleleQuery(url,ids):
       %(xtraConstraint)s
       </query>
     ''' % qopts
+    aid2syns = {}
     for r in doQuery(qsynonyms, url):
       aid2syns.setdefault(r['primaryIdentifier'], set()).add(r['synonyms.value'])
 
+    # Main allele query.
     qalleles = '''<query
       model="genomic"
       view="
@@ -77,6 +92,7 @@ def buildAlleleQuery(url,ids):
       Allele.molecularNote
       Allele.feature.primaryIdentifier
       Allele.feature.mgiType
+      Allele.drivenBy
       "
       constraintLogic="A and (B or E) and C and D"
       sortOrder="Allele.primaryIdentifier asc"
@@ -93,7 +109,15 @@ def buildAlleleQuery(url,ids):
     ''' % qopts
     
     for r in doQuery(qalleles, url):
-      r['synonyms'] = list(aid2syns.get(r['primaryIdentifier'],[]))
+      aid = r['primaryIdentifier']
+      r['synonyms'] = list(aid2syns.get(aid, []))
+      # If the allele has a driver or has expressed components, then the allele has a
+      # "construct". At the Alliance, constructs must have an ID, but at MGI they don't (they're not objects).
+      # So we create a fake ID for it. This are not displayed and are not used to create links.
+      # Constructs are dumped separately. Here we just need the ID
+      if r['drivenBy'] or aid in expressors:
+          r['construct'] = aid + "_con"
+      #
       yield r
 
 #
@@ -134,7 +158,12 @@ def getJsonObj(obj):
   isTgMarker = obj["feature.mgiType"] == "transgene"
   ###
   gene = None if isTgAllele and isTgMarker else obj["feature.primaryIdentifier"]
-  aor = None if not gene else [{"objectRelation": {"associationType":"allele_of","gene":gene }}]
+
+  aors = [] # alleleObjectRelations
+  if gene:
+      aors.append({"objectRelation": {"associationType":"allele_of","gene":gene }})
+  if 'construct' in obj:
+      aors.append({"objectRelation": {"associationType":"contains","construct":obj['construct'] }})
   #
   return stripNulls({
     "primaryId"         : obj["primaryIdentifier"],
@@ -144,7 +173,7 @@ def getJsonObj(obj):
     "synonyms"          : syns,
     "secondaryIds"      : [],
     "crossReferences"   : formatXrefs(obj),
-    "alleleObjectRelations": aor,
+    "alleleObjectRelations": aors,
     "description" : obj["molecularNote"]
   })
 
