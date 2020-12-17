@@ -260,36 +260,6 @@ def main(args):
         first = False
     print(']\n}')
 
-    '''
-    qs2 = []
-    for label, q in qs:
-        qiter = doQuery (q % qmods, MOUSEMINE)
-        qiter = itertools.groupby(qiter, lambda x: x['primaryIdentifier'])
-        qiter = itertools.imap(lambda x, y=label: (x[0], y, list(x[1])), qiter)
-        qs2.append(qiter)
-
-    print '{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(MOUSEMINE), indent=2)
-    first=True
-    for x in itertools.groupby(heapq.merge(*qs2), lambda x: x[0]):
-      obj = { 'mgiid' : x[0] }
-      for y in list(x[1]):
-        if y[1] == 'gene':
-            # copy in all the basic gene attrs (symbol, name, etc)
-            obj.update(y[2][0])
-        elif y[1] == 'synonyms':
-            # make a simple list of synonyms
-            obj['synonyms'] = map(lambda x: x['synonyms.value'], y[2])
-        else:
-            obj[y[1]] = y[2]
-
-      if not obj.get("primaryIdentifier"):
-        continue
-      if not first: print ",",
-      print json.dumps(getJsonObj(obj), indent=2)
-      first=False
-    print ']\n}'
-    '''
-
 mouseGenes = '''
     <query
       name="BGI_mouseGenes"
