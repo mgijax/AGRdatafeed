@@ -40,6 +40,7 @@ Options:
 	g	Basic gene info
 	a	Allele info
 	v	Allele variant info
+        c       Allele construct info
 	y	Genotype info
 	e	Wildtype expression data
         h       High-throughput index metadata
@@ -298,6 +299,7 @@ function doParts {
     doPart "d" "disease" "diseasePheno.py -d" "ingest/disease/diseaseMetaDataDefinition.json" '"DOid"' "DAF"
     doPart "f" "GFF" "http://www.informatics.jax.org/downloads/mgigff3/MGI.agr.gff3.gz" "" "curie=" "GFF"
     doPart "v" "variant" "variant.py" "ingest/allele/variantMetaData.json" "" "VARIATION"
+    doPart "c" "construct" "construct.py" "ingest/construct/constructMetaData.json" "" "CONSTRUCT"
     doPart "y" "AGM" "genotype.py" "ingest/affectedGenomicModel/affectedGenomicModelMetaData.json" "primaryID" "AGM"
 }
 
