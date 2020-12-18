@@ -36,6 +36,8 @@ def rel2constrComp (r) :
     if "properties" in r:
         symbol = r["properties"]["Non-mouse_Gene_Symbol"]
         gid = r["properties"].get("Non-mouse_NCBI_Gene_ID", None)
+        if gid:
+            gid = "NCBI_Gene:"+gid
     if r["relationship"].startswith("express"):
         reln = "expresses"
     elif r["relationship"] == "has_driver":
