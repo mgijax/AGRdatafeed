@@ -39,7 +39,7 @@ for n in cp.options("dataProviders"):
 
 #-----------------------------------
 #
-def buildAlleleQuery(url,ids):
+def getAlleles(url,ids):
     qopts = {
       'xtraConstraint': makeOneOfConstraint('Allele.feature.primaryIdentifier', ids)
     }
@@ -58,22 +58,25 @@ def buildAlleleQuery(url,ids):
         expressors.add(r['allele.primaryIdentifier'])
 
     # Query allele synonyms, build index of id -> synonyms
+    # 2020-12-18: change constraints:
+    #    - drop ontology annotation requirement
+    #    - drop null allele type restriction
+    #    - add exclusion when germline transmission = 'cell line'
     qsynonyms = '''<query
       model="genomic"
       view="
       Allele.primaryIdentifier
       Allele.synonyms.value
       "
-      constraintLogic="A and (B or E) and C and D"
+      constraintLogic="A and B and C and D"
       sortOrder="Allele.primaryIdentifier asc"
       >
       <constraint code="A" path="Allele.organism.taxonId" op="=" value="10090" />
       <constraint code="B" path="Allele.alleleType" op="NONE OF">
         <value>QTL</value>
       </constraint>
-      <constraint code="E" path="Allele.alleleType" op="IS NULL" />
       <constraint code="C" path="Allele.isWildType" op="=" value="false" />
-      <constraint code="D" path="Allele.ontologyAnnotations.ontologyTerm.id" op="IS NOT NULL" />
+      <constraint code="D" path="Allele.glTransmission" op="!=" value="Cell Line"/>
       %(xtraConstraint)s
       </query>
     ''' % qopts
@@ -94,16 +97,16 @@ def buildAlleleQuery(url,ids):
       Allele.feature.mgiType
       Allele.drivenBy
       "
-      constraintLogic="A and (B or E) and C and D"
+      constraintLogic="A and B and C and (D or E)"
       sortOrder="Allele.primaryIdentifier asc"
       >
       <constraint code="A" path="Allele.organism.taxonId" op="=" value="10090" />
       <constraint code="B" path="Allele.alleleType" op="NONE OF">
         <value>QTL</value>
       </constraint>
-      <constraint code="E" path="Allele.alleleType" op="IS NULL" />
       <constraint code="C" path="Allele.isWildType" op="=" value="false" />
-      <constraint code="D" path="Allele.ontologyAnnotations" op="IS NOT NULL" />
+      <constraint code="D" path="Allele.glTransmission" op="!=" value="Cell Line"/>
+      <constraint code="E" path="Allele.glTransmission" op="IS NULL" />
       %(xtraConstraint)s
       </query>
     ''' % qopts
@@ -195,7 +198,7 @@ def main():
   args = parseCmdLine()
   ids = args.identifiers
   #
-  query = buildAlleleQuery(MOUSEMINE, ids)
+  query = getAlleles(MOUSEMINE, ids)
   print('{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(MOUSEMINE), indent=2))
   first = True
   for a in query:
