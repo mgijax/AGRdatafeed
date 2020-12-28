@@ -48,6 +48,8 @@ def rel2constrComp (r) :
         reln = "expresses"
     elif r["relationship"] == "has_driver":
         reln = "is_regulated_by"
+    if gid == "":
+        gid = None
     return {
         "componentSymbol" : symbol,
         "componentID" : gid,
