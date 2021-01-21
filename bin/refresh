@@ -290,6 +290,9 @@ function parseCommandLine {
 
 
 function doParts {
+    # args: cmdAbbrev; fileType; script; schemaFile; grepPattern; allianceFileType
+    doPart "r" "reference" "publications.py -p all" "ingest/resourcesAndReferences/referenceMetaData.json" '"primaryId"' "REFERENCE"
+    doPart "r" "ref_exchange" "publications.py -p pubmed" "ingest/resourcesAndReferences/referenceExchangeMetaData.json" '"pubMedId"' "REF-EXCHANGE"
     doPart "g" "BGI" "basicGeneInfo.py" "ingest/gene/geneMetaData.json" '"primaryId"' "BGI"
     doPart "a" "allele" "alleleInfo.py" "ingest/allele/alleleMetaData.json" '"primaryId"' "ALLELE"
     doPart "e" "expression" "expression.py" "ingest/expression/wildtypeExpressionMetaDataDefinition.json" '"geneId"' "EXPRESSION"

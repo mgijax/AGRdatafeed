@@ -169,7 +169,7 @@ def getTimeStamp(s = None):
 
 #---------------------------------
 PSQL = None
-def sql (query):
+def sql (query, decode=True):
     global PSQL
     cfg = getConfig()
     if PSQL is None:
@@ -186,8 +186,11 @@ def sql (query):
     #
     labels = None
     for line in proc.stdout:
-        line = line.decode('utf-8')
-        toks = line[:-1].split('|')
+        if decode:
+            line = line.decode('utf-8','ignore')
+            toks = line[:-1].split('|')
+        else:
+            toks = line[:-1].split(b'|')
         if labels is None:
             labels = toks
         elif len(toks) == len(labels):
