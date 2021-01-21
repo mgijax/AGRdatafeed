@@ -93,6 +93,7 @@ def getObj (r, which) :
             'issueName'        : r['issue'],
             'allianceCategory' : getAllianceCategory(r),
             'resourceAbbreviation' : r['journal'],
+            'MODReferenceTypes' : [{ "referenceType" : r['referencetype'], "source" : "MGI" }],
         }
     else:
         #
@@ -101,6 +102,7 @@ def getObj (r, which) :
             'pubMedId'         : pmid,
             'allianceCategory' : getAllianceCategory(r),
             'dateLastModified' : getTimeStamp(r['modification_date']),
+            'MODReferenceTypes' : [{ "referenceType" : r['referencetype'], "source" : "MGI" }],
         }
 
 def getAllianceCategory (r) :
@@ -120,6 +122,13 @@ def getAuthors (r, pid) :
 
 def getArgs():
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-s",
+        dest="doSample",
+        action="store_true",
+        default=False,
+        help="Just do a small sample for dev purpposes."
+        )
     parser.add_argument(
         "-p",
         dest="which",
@@ -143,6 +152,8 @@ def main () :
             if n > 0: sys.stdout.write(",")
             print(json.dumps(obj, indent=2))
             n += 1
+            if opts.doSample and n > 100:
+                break
     #
     print(']}')
 
