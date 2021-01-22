@@ -54,9 +54,18 @@ REFS_Q = '''
         bc.mgiid,
         bc.pubmedid,
         b.abstract,
-        bc.referencetype
-    FROM BIB_Refs b, BIB_Citation_cache bc
-    WHERE b._refs_key = bc._refs_key
+        bc.isdiscard,
+        /* FIXME: after release: bc.relevanceterm, */
+        bc.referencetype,
+        bb.book_au,
+        bb.book_title,
+        bb.place,
+        bb.publisher,
+        bb.series_ed
+    FROM
+        BIB_Refs b
+        LEFT OUTER JOIN BIB_Books bb ON b._refs_key = bb._refs_key
+        JOIN BIB_Citation_cache bc ON b._refs_key = bc._refs_key
     '''
 
 def getExchangeObj (r) :
@@ -92,8 +101,9 @@ def getObj (r, which) :
             'citation'         : r['citation'],
             'issueName'        : r['issue'],
             'allianceCategory' : getAllianceCategory(r),
-            'resourceAbbreviation' : r['journal'],
+            'resourceAbbreviation' : r['journal'] or r['book_title'],
             'MODReferenceTypes' : [{ "referenceType" : r['referencetype'], "source" : "MGI" }],
+            'tags'              : getTags(r, primaryId),
         }
     else:
         #
@@ -103,6 +113,7 @@ def getObj (r, which) :
             'allianceCategory' : getAllianceCategory(r),
             'dateLastModified' : getTimeStamp(r['modification_date']),
             'MODReferenceTypes' : [{ "referenceType" : r['referencetype'], "source" : "MGI" }],
+            'tags'              : getTags(r, primaryId),
         }
 
 def getAllianceCategory (r) :
@@ -119,6 +130,16 @@ def getAuthors (r, pid) :
         aid = (a['name'] + pid).replace(" ", "")
         a['referenceId'] = aid
     return authors
+
+def getTags (r, pid) :
+    tags = []
+    # FIXME: after release: if r['relevanceterm'] == 'discard':
+    if r['isdiscard'] == "1":
+        tags.append('notRelevant')
+    else:
+        tags.append('inCorpus')
+
+    return list(map(lambda t: {"referenceId":pid, "tagName":t, "tagSource":"MGI"}, tags))
 
 def getArgs():
     parser = argparse.ArgumentParser()
