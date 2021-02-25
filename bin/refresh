@@ -47,6 +47,7 @@ Options:
 	p	Phenotype annotations
 	d	Disease annotations
 	f	GFF3 gene models
+        r       Publications and resources
 	If no -p option is provides, all parts are run (ie, it's the same as specifying -p g,a,e,p,d,f).
 
 You need to specify at least one of the following options to actually do anything:
