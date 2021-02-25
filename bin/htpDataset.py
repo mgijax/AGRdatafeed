@@ -19,6 +19,12 @@ from AGRlib import stripNulls, buildMetaObject, doQuery, makePubRef, getConfig, 
 
 TIMESTAMP = getTimeStamp()
 
+AGE2BIN = [
+    [42.01, 99999, "UBERON:0000113"], # post-juvenile adult
+    [21.01, 42.0, "post embryonic, pre-adult"],
+    [0.0, 21.0, "UBERON:0000068"],  # embryo
+]
+
 #-----------------------------------
 # load config settings
 
@@ -116,13 +122,30 @@ def getHTdata (kind):
                 yield getSampleJsonObj(s)
             
 #-----------------------------------
+def findUberonTerm (ageMin, ageMax) :
+    ageMin = float(ageMin)
+    ageMax = float(ageMax)
+    for i in range(len(AGE2BIN)) :
+        bMin, bMax, uberonTerm = AGE2BIN[i]
+        if ageMin <= bMax and ageMax >= bMin:
+            return uberonTerm
+    raise RuntimeError("Could not find Uberon term for range (%1.2f, %1.2f)" % (ageMin, ageMax))
+
+#-----------------------------------
+def getStageObj (obj) :
+    u = findUberonTerm(obj["samples.ageMin"], obj["samples.ageMax"])
+    return {
+        "stageName" : "TS" + obj["samples.stage"],
+        "stageUberonSlimTerm": {"uberonTerm":u}
+    }
+#-----------------------------------
 def getSampleJsonObj (obj) :
     return stripNulls({
         "sampleTitle" : obj["samples.name"],
         "datasetIds" : [ "ArrayExpress:" + obj["experimentId"] ],
         "assayType" : getAssayType(obj["experimentType"]),
         "sampleType": "OBI:0000880", # "RNA extract"
-        "sampleAge" : { "age" : obj["samples.age"] },
+        "sampleAge" : { "age" : obj["samples.age"], "stage" : getStageObj(obj) },
         "sampleLocations" : [ mkWhereExpressedObj(obj["samples.structure.identifier"], int(obj["samples.stage"])) ],
         "sex" : getSex(obj),
         "taxonId" : "NCBITaxon:" + obj["samples.organism.taxonId"],
@@ -319,6 +342,8 @@ htSamples = '''
             HTExperiment.samples.name
             HTExperiment.samples.sex
             HTExperiment.samples.age
+            HTExperiment.samples.ageMin
+            HTExperiment.samples.ageMax
             HTExperiment.samples.stage
             HTExperiment.samples.structure.identifier
             HTExperiment.samples.structure.name
