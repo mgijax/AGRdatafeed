@@ -102,8 +102,9 @@ def getObj (r, which) :
             'issueName'        : r['issue'],
             'allianceCategory' : getAllianceCategory(r),
             'resourceAbbreviation' : r['journal'] or r['book_title'],
-            'MODReferenceTypes' : [{ "referenceType" : r['referencetype'], "source" : "MGI" }],
+            'MODReferenceTypes' : [{ 'referenceType' : r['referencetype'], 'source' : 'MGI' }],
             'tags'              : getTags(r, primaryId),
+            'crossReferences'   : [{'id': r['mgiid'],'pages':['reference']}],
         }
     else:
         #
@@ -112,7 +113,7 @@ def getObj (r, which) :
             'pubMedId'         : pmid,
             'allianceCategory' : getAllianceCategory(r),
             'dateLastModified' : getTimeStamp(r['modification_date']),
-            'MODReferenceTypes' : [{ "referenceType" : r['referencetype'], "source" : "MGI" }],
+            'MODReferenceTypes' : [{ 'referenceType' : r['referencetype'], 'source' : 'MGI' }],
             'tags'              : getTags(r, primaryId),
         }
 
