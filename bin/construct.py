@@ -36,7 +36,15 @@ def loadRelationship (key) :
         rels.append(r)
     return rels
 
+def loadNcbi2HgncMapping () :
+    global ncbi2hgnc
+    ncbi2hgnc = {}
+    for r in sql(qNcbi2Hgnc):
+        ncbi2hgnc["NCBI_Gene:" + r['NCBI']] = r['HGNC']
+    return ncbi2hgnc
+
 def rel2constrComp (r) :
+    global ncbi2hgnc
     gid = r["gene"]
     symbol = r["genesymbol"]
     if "properties" in r:
@@ -44,6 +52,7 @@ def rel2constrComp (r) :
         gid = r["properties"].get("Non-mouse_NCBI_Gene_ID", None)
         if gid:
             gid = "NCBI_Gene:"+gid
+            gid = ncbi2hgnc.get(gid,gid)
     if r["relationship"].startswith("express"):
         reln = "expresses"
     elif r["relationship"] == "has_driver":
@@ -64,6 +73,8 @@ def main () :
     for r in loadRelationship(DRIVER_cat_key):
         aid2rels.setdefault(r['allele'],[]).append(r)
     aids = list(aid2rels.keys())
+    #
+    ncbi2hgnc = loadNcbi2HgncMapping()
     print('{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(MOUSEMINE), indent=2))
     first = True
     for aid in aids:
@@ -151,6 +162,20 @@ qAlleles = '''<query
       <constraint code="E" path="Allele.glTransmission" op="IS NULL" />
       </query>
     '''
+# query to return mapping from NCBI gene ids to HGNC ids for human genes.
+# (The VAST majority of non-mouse constructs contain human genes.)
+qNcbi2Hgnc = '''
+    select a.accid as "NCBI", a2.accid as "HGNC"
+    from acc_accession a, mrk_marker m, acc_accession a2
+    where a._logicaldb_key = 55
+    and a._object_key = m._marker_key
+    and a._mgitype_key = 2
+    and m._organism_key != 1
+    and a2._object_key = m._marker_key
+    and a2._logicaldb_key = 64
+    and a2._mgitype_key = 2
+    '''
+
 # go!
 main()
 
