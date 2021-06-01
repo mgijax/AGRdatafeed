@@ -16,6 +16,9 @@ MOUSEMINE = cp.get("DEFAULT","MOUSEMINEURL")
 EXPRESSES_cat_key = 1004
 DRIVER_cat_key = 1006
 
+def log (s) :
+    sys.stderr.write(s + '\n')
+
 def loadSubmittedAlleles () :
     aids = set()
     for a in doQuery(qAlleles, MOUSEMINE):
@@ -40,7 +43,7 @@ def loadNcbi2HgncMapping () :
     global ncbi2hgnc
     ncbi2hgnc = {}
     for r in sql(qNcbi2Hgnc):
-        ncbi2hgnc["NCBI_Gene:" + r['NCBI']] = r['HGNC']
+        ncbi2hgnc["NCBI_Gene:" + r['NCBI']] = r['MOD']
     return ncbi2hgnc
 
 def rel2constrComp (r) :
@@ -51,8 +54,11 @@ def rel2constrComp (r) :
         symbol = r["properties"]["Non-mouse_Gene_Symbol"]
         gid = r["properties"].get("Non-mouse_NCBI_Gene_ID", None)
         if gid:
-            gid = "NCBI_Gene:"+gid
-            gid = ncbi2hgnc.get(gid,gid)
+            ngid = "NCBI_Gene:"+gid
+            gid = ncbi2hgnc.get(ngid,ngid)
+            if gid.startswith("MGI:") :
+                log('Mouse NCBI gene id used for non-mouse construct: %s %s %s %s' %
+                    (r["allele"], r['allelesymbol'], symbol, ngid))
     if r["relationship"].startswith("express"):
         reln = "expresses"
     elif r["relationship"] == "has_driver":
@@ -162,18 +168,24 @@ qAlleles = '''<query
       <constraint code="E" path="Allele.glTransmission" op="IS NULL" />
       </query>
     '''
-# query to return mapping from NCBI gene ids to HGNC ids for human genes.
-# (The VAST majority of non-mouse constructs contain human genes.)
+# query to return mapping from NCBI gene ids to HGNC ids for human
+# and MGI ids for mouse.
+# a. The vast majority of non-mouse constructs contain human genes.
+# b. A few mouse constructs use NCBI ids when they shouldn't. We convert (and report) them.
 qNcbi2Hgnc = '''
-    select a.accid as "NCBI", a2.accid as "HGNC"
+    select a.accid as "NCBI", a2.accid as "MOD", m._organism_key
     from acc_accession a, mrk_marker m, acc_accession a2
     where a._logicaldb_key = 55
     and a._object_key = m._marker_key
     and a._mgitype_key = 2
-    and m._organism_key != 1
     and a2._object_key = m._marker_key
-    and a2._logicaldb_key = 64
     and a2._mgitype_key = 2
+    and ((m._organism_key = 1 
+        and a2._logicaldb_key = 1
+        and a2.preferred = 1) 
+        or
+        (m._organism_key = 2
+        and a2._logicaldb_key = 64))
     '''
 
 # go!
