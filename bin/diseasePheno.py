@@ -185,6 +185,7 @@ def applyConversions(a, okind, skind):
     # AGR inverts this: one reference with >= 1 evidence code.
     ref2codes = {}
     ref2baseAnnots = {}
+    ref2adate = {}
     for e in a["evidence"]:
         # FIXME: temporary tweak for MouseMine annotations. Remove once allele-annotations are being loaded from MGI
         if e["evidence.code.code"] == "DOA":
@@ -197,14 +198,17 @@ def applyConversions(a, okind, skind):
         mgiid = e["evidence.publications.mgiId"]
         ref2codes.setdefault((mgiid,pmid), set()).add(e["evidence.code.code"])
         ref2baseAnnots.setdefault((mgiid, pmid), []).extend([x["baseAnnotations.subject.primaryIdentifier"] for x in e["baseAnnots"]])
+        adate = e["evidence.annotationDate"]
+        ref2adate.setdefault((mgiid,pmid), getTimeStamp(adate))
     ##
     # create list of "inverted" evidence records, each having a pub id and list of evidence codes
     a["invevidence"] = []
     a["invbaseannots"] = []
     for (k,es) in list(ref2codes.items()):
+        adate = ref2adate.get(k, [])
         (mgiId, pubMedId) = k
         p = makePubRef(pubMedId, mgiId)
-        a["invevidence"].append({ "publication" : p, "evidenceCodes" : list(es) })
+        a["invevidence"].append({ "publication" : p, "evidenceCodes" : list(es), "annotationDate" : adate })
         #
         baseAnnots = list(set(ref2baseAnnots[k]))
         a["invbaseannots"].append(baseAnnots)
@@ -302,6 +306,8 @@ def log (s):
 def formatDafJsonRecord (annot, kind, skind):
     #
     annot["primaryGeneticEntityIDs"] = []
+    adate = annot["agrevidence"].pop("annotationDate", annot['annotationDate'])
+    #adate = annot['annotationDate']
     try:
       if kind == "disease":
         return stripNulls({
@@ -316,7 +322,7 @@ def formatDafJsonRecord (annot, kind, skind):
             'evidence':                     annot["agrevidence"],
             'primaryGeneticEntityIDs':      annot["agrbaseannots"],
             #'geneticSex':                  '',
-            'dateAssigned':                 annot["annotationDate"],
+            'dateAssigned':                 adate,
             'dataProvider':                 [ buildDataProviderObject(annot, kind, skind) ],
         })
       else:
