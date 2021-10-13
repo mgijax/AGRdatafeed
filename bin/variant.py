@@ -36,8 +36,33 @@ chr2accid = {
     "X" : "NC_000086.7",
     "Y" : "NC_000087.7",
     "MT": "NC_005089.1"
+  },
+  "GRCm39" : {
+    "1" : "NC_000067.7",
+    "2" : "NC_000068.8",
+    "3" : "NC_000069.7",
+    "4" : "NC_000070.7",
+    "5" : "NC_000071.7",
+    "6" : "NC_000072.7",
+    "7" : "NC_000073.7",
+    "8" : "NC_000074.7",
+    "9" : "NC_000075.7",
+    "10" : "NC_000076.7",
+    "11" : "NC_000077.7",
+    "12" : "NC_000078.7",
+    "13" : "NC_000079.7",
+    "14" : "NC_000080.7",
+    "15" : "NC_000081.7",
+    "16" : "NC_000082.7",
+    "17" : "NC_000083.7",
+    "18" : "NC_000084.7",
+    "19" : "NC_000085.7",
+    "X " : "NC_000086.8",
+    "Y " : "NC_000087.8",
+    "MT" : "NC_005089.1"
   }
 }
+
 
 #
 S_RE = re.compile('[^a-zA-Z-]')
@@ -145,7 +170,7 @@ def main () :
     n = 0
     print('{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(MOUSEMINE), indent=2))
     for x in sql(Q_VARIANTS):
-      x['build'] = "GRCm38" # FIXME: should get this from the DB
+      x['build'] = "GRCm39" # FIXME: should get this from the DB
       x['type'] = vk2types.get(x['_variant_key'], None)
       x['effect'] = vk2effects.get(x['_variant_key'], None)
       x['refs'] = vk2refs.get(x['_variant_key'], [])
