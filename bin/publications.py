@@ -54,8 +54,7 @@ REFS_Q = '''
         bc.mgiid,
         bc.pubmedid,
         b.abstract,
-        bc.isdiscard,
-        /* FIXME: after release: bc.relevanceterm, */
+        bc.relevanceterm,
         bc.referencetype,
         bb.book_au,
         bb.book_title,
@@ -134,8 +133,7 @@ def getAuthors (r, pid) :
 
 def getTags (r, pid) :
     tags = []
-    # FIXME: after release: if r['relevanceterm'] == 'discard':
-    if r['isdiscard'] == "1":
+    if r['relevanceterm'] == "discard":
         tags.append('notRelevant')
     else:
         tags.append('inCorpus')
