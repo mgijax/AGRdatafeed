@@ -149,7 +149,7 @@ def getSampleJsonObj (obj) :
         "sampleLocations" : [ mkWhereExpressedObj(obj["samples.structure.identifier"], int(obj["samples.stage"])) ],
         "sex" : getSex(obj),
         "taxonId" : "NCBITaxon:" + obj["samples.organism.taxonId"],
-        "assemblyVersions" : [ "GRCm38.p6" ],
+        "assemblyVersions" : [ "GRCm39" ],
         "dateAssigned" : obj['curationDate']
     })
 
