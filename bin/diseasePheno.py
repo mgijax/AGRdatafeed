@@ -114,11 +114,13 @@ def annotations(url, okind, skind, ids = None):
             OntologyAnnotationEvidence.annotation.id
             OntologyAnnotationEvidence.baseAnnotations.subject.primaryIdentifier
             OntologyAnnotationEvidence.baseAnnotations.evidence.annotationDate
+            OntologyAnnotationEvidence.baseAnnotations.evidence.publications.pubMedId
             "
         sortOrder="OntologyAnnotationEvidence.annotation.id asc OntologyAnnotationEvidence.id asc"
         >
         <constraint path="OntologyAnnotationEvidence.annotation.ontologyTerm" type="%(okind)s"/>
         <constraint path="OntologyAnnotationEvidence.annotation.subject" type="%(skind)s"/>
+        <constraint path="OntologyAnnotationEvidence.baseAnnotations.evidence.publications" op="=" loopPath="OntologyAnnotationEvidence.publications"/>
         %(xtraConstraint2)s
         </query>
     ''' % qopts
