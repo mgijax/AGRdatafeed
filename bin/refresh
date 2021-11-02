@@ -48,6 +48,7 @@ Options:
 	d	Disease annotations
 	f	GFF3 gene models
         r       Publications and resources
+        t       Genome Assembly
 	If no -p option is provides, all parts are run (ie, it's the same as specifying -p g,a,e,p,d,f).
 
 You need to specify at least one of the following options to actually do anything:
@@ -102,6 +103,8 @@ function setFile {
   ftype="$1"
   if [[ ${ftype} == "GFF" ]] ; then
       FILE="${ROOT}_${ftype}.gff3"
+  elif [[ ${ftype} == "assembly" ]] ; then
+      FILE="${ROOT}_${ftype}.fa.gz"
   else
       FILE="${ROOT}_${ftype}.json"
   fi
@@ -121,6 +124,8 @@ function generate {
 	  url=${script}
 	  curl ${url} | gunzip > ${FILE}
       fi
+  elif [[ ${ftype} == "assembly" ]] ; then
+      return
   else
       if [[ ${DO_GENERATE} ]] ; then
 	  ${PYTHON} ${script} > ${FILE}
@@ -139,6 +144,8 @@ function validate {
   vschema=$2
   setFile ${ftype}
   if [[ ${ftype} == "GFF" ]] ; then
+    return
+  elif [[ ${ftype} == "assembly" ]] ; then
     return
   fi
   logit "Validating ${FILE} against schema file ${vschema}..."
@@ -294,6 +301,7 @@ function doParts {
     # args: cmdAbbrev; fileType; script; schemaFile; grepPattern; allianceFileType
     doPart "r" "reference" "publications.py -p all" "ingest/resourcesAndReferences/referenceMetaData.json" '"primaryId"' "REFERENCE"
     doPart "r" "ref_exchange" "publications.py -p pubmed" "ingest/resourcesAndReferences/referenceExchangeMetaData.json" '"pubMedId"' "REF-EXCHANGE"
+    #doPart "r" "resource" "publications.py -p resource" "ingest/resourcesAndReferences/resourceMetaData.json" '"primaryId"' "RESOURCE"
     doPart "g" "BGI" "basicGeneInfo.py" "ingest/gene/geneMetaData.json" '"primaryId"' "BGI"
     doPart "a" "allele" "alleleInfo.py" "ingest/allele/alleleMetaData.json" '"primaryId"' "ALLELE"
     doPart "e" "expression" "expression.py" "ingest/expression/wildtypeExpressionMetaDataDefinition.json" '"geneId"' "EXPRESSION"
@@ -305,6 +313,7 @@ function doParts {
     doPart "v" "variant" "variant.py" "ingest/allele/variantMetaData.json" "" "VARIATION"
     doPart "c" "construct" "construct.py" "ingest/construct/constructMetaData.json" "" "CONSTRUCT"
     doPart "y" "AGM" "genotype.py" "ingest/affectedGenomicModel/affectedGenomicModelMetaData.json" "primaryID" "AGM"
+    doPart "t" "assembly" "" "" "" "FASTA"
 }
 
 function main {

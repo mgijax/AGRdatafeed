@@ -57,8 +57,8 @@ chr2accid = {
     "17" : "NC_000083.7",
     "18" : "NC_000084.7",
     "19" : "NC_000085.7",
-    "X " : "NC_000086.8",
-    "Y " : "NC_000087.8",
+    "X"  : "NC_000086.8",
+    "Y"  : "NC_000087.8",
     "MT" : "NC_005089.1"
   }
 }
@@ -71,6 +71,11 @@ def cleanseSequence (s) :
 #
 def getJsonObj(r) :
   vtype = r["type"]
+  # FIXME: MGI uses the SO term "duplication". Alliance does not accept this term at the moment.
+  # So convert to its parent term "insertion".
+  if vtype == "SO:1000035":
+      vtype = r["type"] = "SO:0000667"
+  #
   rr = stripNulls({
     "alleleId": r["allele_id"],
     "assembly" : r["build"],
