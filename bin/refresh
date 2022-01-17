@@ -49,7 +49,7 @@ Options:
 	f	GFF3 gene models
         r       Publications and resources
         t       Genome Assembly
-	If no -p option is provides, all parts are run (ie, it's the same as specifying -p g,a,e,p,d,f).
+	If no -p option is provided, all parts are run.
 
 You need to specify at least one of the following options to actually do anything:
 -g      Generate data files specified in -p option.
