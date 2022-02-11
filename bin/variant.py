@@ -226,10 +226,9 @@ Q_VARIANTS = '''
 
 #
 Q_VARIANT_NOTES = '''
-    select nc.note, n._object_key as _variant_key
-    from mgi_notechunk nc, mgi_note n
-    where nc._note_key = n._note_key
-    and n._notetype_key = 1051
+    select n.note, n._object_key as _variant_key
+    from mgi_note n
+    where n._notetype_key = 1051
     '''
 #
 Q_TYPES = '''
