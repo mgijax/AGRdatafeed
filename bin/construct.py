@@ -4,6 +4,10 @@
 # Script to generate construct objects for alleles in MGI.
 # Alleles that have expressed components or that have driver genes are considered to
 # have constructs.
+
+# The alliance ingest schema wants an identifier for each construct. MGI does not have
+# actual construct objects, much less identifiers for them. So this script creates ersatz
+# IDs for the constructs, based on the owning allele's id.
 #
 
 import sys
@@ -13,8 +17,8 @@ from AGRlib import getConfig, stripNulls, buildMetaObject, makeOneOfConstraint, 
 cp = getConfig()
 MOUSEMINE = cp.get("DEFAULT","MOUSEMINEURL")
 
-EXPRESSES_cat_key = 1004
-DRIVER_cat_key = 1006
+EXPRESSES_cat_key = "1004"
+DRIVER_cat_key = "1006"
 
 def log (s) :
     sys.stderr.write(s + '\n')
@@ -39,30 +43,32 @@ def loadRelationship (key) :
         rels.append(r)
     return rels
 
-def loadNcbi2HgncMapping () :
-    global ncbi2hgnc
-    ncbi2hgnc = {}
-    for r in sql(qNcbi2Hgnc):
-        ncbi2hgnc["NCBI_Gene:" + r['NCBI']] = r['MOD']
-    return ncbi2hgnc
-
 def rel2constrComp (r) :
-    global ncbi2hgnc
     gid = r["gene"]
     symbol = r["genesymbol"]
-    if "properties" in r:
-        symbol = r["properties"]["Non-mouse_Gene_Symbol"]
-        gid = r["properties"].get("Non-mouse_NCBI_Gene_ID", None)
-        if gid:
-            ngid = "NCBI_Gene:"+gid
-            gid = ncbi2hgnc.get(ngid,ngid)
-            if gid.startswith("MGI:") :
-                log('Mouse NCBI gene id used for non-mouse construct: %s %s %s %s' %
-                    (r["allele"], r['allelesymbol'], symbol, ngid))
-    if r["relationship"].startswith("express"):
+
+    if r["_category_key"] == EXPRESSES_cat_key:
         reln = "expresses"
-    elif r["relationship"] == "has_driver":
+        try:
+            if r["relationship"] == "expresses_an_orthologous_gene":
+                symbol = r["properties"]["Non-mouse_Gene_Symbol"]
+                organism = r["properties"]["Non-mouse_Organism"]
+                if organism == "human":
+                    gid = r["properties"].get("Non-mouse_HGNC_Gene_ID",None)
+                elif organism == "rat":
+                    gid = r["properties"].get("Non-mouse_RGD_Gene_ID",None)
+                elif organism == "zebrafish":
+                    gid = "ZFIN:" + r["properties"].get("Non-mouse_ZFIN_Gene_ID",None)
+                else:
+                    gid = None
+        except:
+            log("Error processing: " + str(r))
+            return None
+    elif r["_category_key"] == DRIVER_cat_key:
         reln = "is_regulated_by"
+    else:
+        raise RuntimeError("Internal error: unknown _category_key: " + str(r))
+
     if gid == "":
         gid = None
     return {
@@ -80,14 +86,13 @@ def main () :
         aid2rels.setdefault(r['allele'],[]).append(r)
     aids = list(aid2rels.keys())
     #
-    ncbi2hgnc = loadNcbi2HgncMapping()
     print('{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(MOUSEMINE), indent=2))
     first = True
     for aid in aids:
         if not aid in submittedIds:
             continue
         arels = aid2rels[aid]
-        ccomps = list(map(rel2constrComp, arels))
+        ccomps = list(filter(lambda x:x, map(rel2constrComp, arels)))
         obj = {
           "primaryId" : aid + '_con',
           "name" : arels[0]["allelesymbol"] + ' construct',
@@ -137,7 +142,7 @@ qRelationships = '''
             ON r._object_key_1 = al._allele_key
         JOIN MRK_Marker mm
             ON r._object_key_2 = mm._marker_key
-    WHERE r._category_key = %d
+    WHERE r._category_key = %s
     ORDER BY r._relationship_key
     '''
 
@@ -149,7 +154,7 @@ qProperties = '''
         ON r._relationship_key = p._relationship_key
       JOIN VOC_Term t
         ON p._propertyname_key = t._term_key
-    WHERE r._category_key = %d
+    WHERE r._category_key = %s
     ORDER BY r._relationship_key, p.sequenceNum
     '''
 
@@ -167,25 +172,6 @@ qAlleles = '''<query
       <constraint code="D" path="Allele.glTransmission" op="!=" value="Cell Line"/>
       <constraint code="E" path="Allele.glTransmission" op="IS NULL" />
       </query>
-    '''
-# query to return mapping from NCBI gene ids to HGNC ids for human
-# and MGI ids for mouse.
-# a. The vast majority of non-mouse constructs contain human genes.
-# b. A few mouse constructs use NCBI ids when they shouldn't. We convert (and report) them.
-qNcbi2Hgnc = '''
-    select a.accid as "NCBI", a2.accid as "MOD", m._organism_key
-    from acc_accession a, mrk_marker m, acc_accession a2
-    where a._logicaldb_key = 55
-    and a._object_key = m._marker_key
-    and a._mgitype_key = 2
-    and a2._object_key = m._marker_key
-    and a2._mgitype_key = 2
-    and ((m._organism_key = 1 
-        and a2._logicaldb_key = 1
-        and a2.preferred = 1) 
-        or
-        (m._organism_key = 2
-        and a2._logicaldb_key = 64))
     '''
 
 # go!

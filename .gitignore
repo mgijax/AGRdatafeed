@@ -6,3 +6,6 @@
 *.xlsx
 *.txt
 *.json
+LOG*
+MGI_*
+nohup.out
