@@ -148,7 +148,9 @@ def annotations(url, okind, skind, ids = None):
           for n,e in enumerate(rr["invevidence"]):
               rr["agrevidence"] = e
               rr["agrbaseannots"] = rr["invbaseannots"][n]
-              yield formatDafJsonRecord(rr, "disease" if okind == "DOTerm" else "phenotype", skind)
+              rr2 = formatDafJsonRecord(rr, "disease" if okind == "DOTerm" else "phenotype", skind)
+              if rr2:
+                  yield rr2
 
 ########
 # Applies various transformations to a 'raw' annotation returned from the db to prepare it
@@ -189,9 +191,6 @@ def applyConversions(a, okind, skind):
     ref2baseAnnots = {}
     ref2adate = {}
     for e in a["evidence"]:
-        # FIXME: temporary tweak for MouseMine annotations. Remove once allele-annotations are being loaded from MGI
-        if e["evidence.code.code"] == "DOA":
-            e["evidence.code.code"] = "TAS"
         #
         if okind == "DOTerm":
             e["evidence.code.code"] = code2eco[e["evidence.code.code"]]
@@ -230,21 +229,6 @@ def applyConversions(a, okind, skind):
             # record for later use: which genotypes roll up to this gene
             geno2genes.setdefault(ba["baseAnnotations.subject.primaryIdentifier"], set()).add(a["subject.primaryIdentifier"])
     elif skind == "Allele":
-        # FIXME FIXME FIXME
-        # Rolled up allele-disease/pheno annotations have never been implemented in MGI. The rules implemented for mousmine are
-        # ancient and incomplete. The following is a TEMPORARY measure to filter the annotations to a more acceptible set.
-        #
-        # To wit:
-        #
-        # We will only include a rolled up allele-disease/pheno annotation if the allele's gene also has a rolled-up annotation to 
-        # the same disease/pheno. (Sue Bello suggested this rule.) 
-        #
-        # The ultimate solution is to compute the rolled up annotations in MGI 
-        # (as with gene-disease/pheno annotations) and simply # load them into MouseMine. There is a TR for this.
-        # When that TR is complete, the following can go away...
-        # 
-        if not a["ontologyTerm.identifier"] in gene2term.get(a["subject.feature.primaryIdentifier"], []):
-            return None
         a["objectName"] = a["subject.symbol"]
         a["objectRelation"] = {
             "objectType" : "allele",
@@ -329,7 +313,9 @@ def formatDafJsonRecord (annot, kind, skind):
         })
       else:
         # guard against data issue: MP record w/o a name. 
-        pstmt = annot["ontologyTerm.name"] if annot["ontologyTerm.name"] else '?'
+        if not annot["ontologyTerm.name"]:
+            return None
+        #
         return stripNulls({
             'objectId':                     annot["subject.primaryIdentifier"],
             'phenotypeTermIdentifiers':     [{ "termId" : annot["ontologyTerm.identifier"], 'termOrder' : 1 }],
