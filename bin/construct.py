@@ -79,6 +79,8 @@ def rel2constrComp (r) :
             gid = r["gene"]
         else:
             gid = ak2nmdId.get(r["_allele_key"], None)
+            if gid and gid.startswith('ZDB'):
+                gid = 'ZFIN:' + gid
     else:
         raise RuntimeError("Internal error: unknown _category_key: " + str(r))
 
@@ -89,6 +91,7 @@ def rel2constrComp (r) :
     }
     
 def main () :
+    loadNonMouseDrivers()
     submittedIds = loadSubmittedAlleles()
     aid2rels = {}
     for r in loadRelationship(EXPRESSES_cat_key):
