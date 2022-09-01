@@ -88,7 +88,7 @@ def getSex (obj) :
     # Male, Female, Pooled, Not Specified
     #  =>
     # male, female, pooled, unknown
-    if obj["samples.sex"] == "Not Specified":
+    if obj["samples.sex"] is None or obj["samples.sex"] == "Not Specified":
         return "unknown"
     return obj["samples.sex"].lower()
 
