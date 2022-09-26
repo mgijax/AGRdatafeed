@@ -3,14 +3,14 @@
 #
 #
 import sys
+import os
 import re
 import subprocess
 import json
-from AGRlib import getConfig, stripNulls, buildMetaObject, makeOneOfConstraint, doQuery, sql
+from AGRlib import stripNulls, buildMetaObject, makeOneOfConstraint, doQuery, sql
 
-cp = getConfig()
-MOUSEMINE     = cp.get("DEFAULT","MOUSEMINEURL")
-GLOBALTAXONID = cp.get("DEFAULT","GLOBALTAXONID")
+MOUSEMINE     = os.environ["MOUSEMINEURL"]
+GLOBALTAXONID = os.environ["GLOBALTAXONID"]
 
 chr2accid = {
   "GRCm38" : {
@@ -143,7 +143,7 @@ def getJsonObj(r) :
       return None
   else:
     # error
-    raise RuntimeError("Unknown or unhandled vtype: " + vtype)
+    raise RuntimeError("Unknown or unhandled vtype: " + str(vtype))
   return rr
 
 #
@@ -184,7 +184,7 @@ def main () :
           j = getJsonObj(x)
           if not j: continue
       except:
-          log("\nSkipping variant because of error: key=" +x['_variant_key'] + " " + str(x))
+          log("\nSkipping variant because of error: key=%s %s" % (x['_variant_key'], str(x)))
           log("Error=" + str(sys.exc_info()[1]))
           continue
       if n > 0: sys.stdout.write(",")

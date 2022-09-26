@@ -1,5 +1,12 @@
 #!/bin/bash
 
+if [ -e ../Configuration ] ; then
+    source ../Configuration
+else
+    echo "No Configuration file found."
+    exit 1
+fi
+
 # ---------------------
 # Initialize vars
 LOGFILE=""
@@ -15,7 +22,7 @@ DO_REPORT=""
 DO_UPLOAD=""
 TOKEN_FILE=""
 NO_RUN=""
-PYTHON="python3"
+PYTHON="/opt/python3.7/bin/python3"
 # the agr_validator requires python2.7
 PYTHON2="python2.7"
 
@@ -337,7 +344,7 @@ function main {
     checkExit
 
     if [[ ${LOGFILE} ]]; then
-        doParts >>${LOGFILE} 2>1
+        doParts >>${LOGFILE} 2>&1
     else
         doParts
     fi

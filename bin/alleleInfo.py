@@ -18,24 +18,15 @@ import json
 import itertools
 import time
 import types
+import os
 import argparse
 
 # nonstandard dependencies
-from AGRlib import getConfig, stripNulls, buildMetaObject, makeOneOfConstraint, doQuery
+from AGRlib import stripNulls, buildMetaObject, makeOneOfConstraint, doQuery, dataProviders
 
 #-----------------------------------
-# load config settings
-cp = getConfig()
-
-MOUSEMINE     = cp.get("DEFAULT","MOUSEMINEURL")
-GLOBALTAXONID = cp.get("DEFAULT","GLOBALTAXONID")
-
-# Mapping from data provider name as stored in MGI to name as needed by AGR
-# Cross references exported to the file are limited to those where the provider's name
-# has an entry in this map.
-dataProviders   = {}
-for n in cp.options("dataProviders"):
-    dataProviders[n] = cp.get("dataProviders", n)
+MOUSEMINE     = os.environ["MOUSEMINEURL"]
+GLOBALTAXONID = os.environ["GLOBALTAXONID"]
 
 #-----------------------------------
 #

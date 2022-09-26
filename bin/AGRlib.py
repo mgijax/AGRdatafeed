@@ -10,19 +10,13 @@ import urllib.request, urllib.parse, urllib.error
 import itertools
 import sys
 import subprocess
-
+import db
 
 #----------------------------------
-#
-def getConfig():
-    from configparser import ConfigParser
-    DIR=os.path.dirname(__file__)
-    cfname= os.path.abspath(os.path.join(DIR,"..","config.cfg"))
-    cp = ConfigParser()
-    cp.optionxform = str # make keys case sensitive
-    cp.read(cfname)
-    return cp
-
+dataProviders = {
+    "Entrez Gene": "NCBI_Gene",
+    "Ensembl Gene Model": "ENSEMBL"
+}
 
 #----------------------------------
 # See: http://henry.precheur.org/projects/rfc3339 
@@ -82,6 +76,7 @@ def getView (q, stripRoot=True):
 #----------------------------------
 # 
 def doQuery(q, url):
+  sys.stderr.write("MouseMine query:\n" + q + "\n")
   view = getView(q)
   def makeObject (row) :
     return dict(list(zip(view, [f if f != '""' else None for f in row])))
@@ -168,34 +163,9 @@ def getTimeStamp(s = None):
         return rfc3339(time.time())
 
 #---------------------------------
-PSQL = None
-def sql (query, decode=True):
-    global PSQL
-    cfg = getConfig()
-    if PSQL is None:
-        PSQL = cfg.get("DEFAULT","PSQL")
-    user = cfg.get("DEFAULT","PSQL_USER")
-    host = cfg.get("DEFAULT","PSQL_HOST")
-    database = cfg.get("DEFAULT","PSQL_DATABASE")
-    cmd = (PSQL + " -A -U %s -h %s %s -c" %(user,host,database)).split()
-    cmd.append(query)
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-    #
-    def toDict(row, labels):
-        return dict(list(zip(labels, row)))
-    #
-    labels = None
-    for line in proc.stdout:
-        if decode:
-            line = line.decode('utf-8','ignore')
-            toks = line[:-1].split('|')
-        else:
-            toks = line[:-1].split(b'|')
-        if labels is None:
-            labels = toks
-        elif len(toks) == len(labels):
-            yield toDict(toks, labels)
-    proc.wait()
+def sql (query) :
+    sys.stderr.write("SQL query: " + query)
+    return db.sql(query)
 
 #-----------------------------------
 

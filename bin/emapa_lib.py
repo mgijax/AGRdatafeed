@@ -1,15 +1,15 @@
 # standard libs
 import sys
+import os
 import json
 import argparse
 
 # nonstandard dependencies
-from AGRlib import getConfig, stripNulls, buildMetaObject, doQuery, makeOneOfConstraint, makePubRef
+from AGRlib import stripNulls, buildMetaObject, doQuery, makeOneOfConstraint, makePubRef
 
 #-----------------------------------
 # load config settings
-cp = getConfig()
-MOUSEMINE  = cp.get("DEFAULT","MOUSEMINEURL")
+MOUSEMINE  = os.environ["MOUSEMINEURL"]
 
 #-----------------------------------
 def log(msg):

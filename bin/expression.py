@@ -30,6 +30,7 @@
 
 # standard libs
 import sys
+import os
 import re
 import json
 import itertools
@@ -38,7 +39,7 @@ import types
 import argparse
 
 # nonstandard dependencies
-from AGRlib import getConfig, stripNulls, buildMetaObject, doQuery, makeOneOfConstraint, makePubRef
+from AGRlib import stripNulls, buildMetaObject, doQuery, makeOneOfConstraint, makePubRef
 
 #-----------------------------------
 # Mapping from our assay type to MMO ids
@@ -104,13 +105,9 @@ ts2uberon = dict( \
     [('TS28', 'UBERON:0000113')])
 
 #-----------------------------------
-# load config settings
-cp = getConfig()
-
-#-----------------------------------
 # MouseMine connection
 
-MOUSEMINE  = cp.get("DEFAULT","MOUSEMINEURL")
+MOUSEMINE  = os.environ["MOUSEMINEURL"]
 
 #-----------------------------------
 def log(msg):

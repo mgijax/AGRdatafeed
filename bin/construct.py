@@ -14,14 +14,14 @@
 #
 
 import sys
+import os
 import json
-from AGRlib import getConfig, stripNulls, buildMetaObject, makeOneOfConstraint, sql, doQuery
+from AGRlib import stripNulls, buildMetaObject, makeOneOfConstraint, sql, doQuery
 
-cp = getConfig()
-MOUSEMINE = cp.get("DEFAULT","MOUSEMINEURL")
+MOUSEMINE = os.environ["MOUSEMINEURL"]
 
-EXPRESSES_cat_key = "1004"
-DRIVER_cat_key = "1006"
+EXPRESSES_cat_key = 1004
+DRIVER_cat_key = 1006
 
 def log (s) :
     sys.stderr.write(s + '\n')

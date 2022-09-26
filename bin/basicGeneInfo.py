@@ -42,25 +42,17 @@ import json
 import heapq
 import itertools
 import re
-from AGRlib import getConfig, stripNulls, buildMetaObject, doQuery, makeOneOfConstraint
+import os
+from AGRlib import stripNulls, buildMetaObject, doQuery, makeOneOfConstraint, dataProviders
 
 #-----------------------------------
-# load config settings
-cp = getConfig()
 
-MOUSEMINE     = cp.get("DEFAULT","MOUSEMINEURL")
-taxon         = cp.get("DEFAULT","TAXONID")
-GLOBALTAXONID = cp.get("DEFAULT","GLOBALTAXONID")
-MYGENEURL     = cp.get("DEFAULT","MYGENEURL")
-SAMPLEIDS     = cp.get("DEFAULT","SAMPLEIDS").split()
-MGD_OLD_PREFIX= cp.get("DEFAULT","MGD_OLD_PREFIX")
-
-# Mapping from data provider name as stored in MGI to name as needed by AGR
-# Cross references exported to the file are limited to those where the provider's name
-# has an entry in this map.
-dataProviders   = {}
-for n in cp.options("dataProviders"):
-    dataProviders[n] = cp.get("dataProviders", n)
+MOUSEMINE     = os.environ["MOUSEMINEURL"]
+taxon         = os.environ["TAXONID"]
+GLOBALTAXONID = os.environ["GLOBALTAXONID"]
+MYGENEURL     = os.environ["MYGENEURL"]
+SAMPLEIDS     = os.environ["SAMPLEIDS"].split()
+MGD_OLD_PREFIX= os.environ["MGD_OLD_PREFIX"]
 
 # In MouseMine, synonyms and secondary ids are lumped together as "synonyms". 
 # This function distinguishes a synonym value as being either a secondary id or not.

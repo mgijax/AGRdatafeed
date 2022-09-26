@@ -5,6 +5,7 @@
 #
 
 import sys
+import os
 import re
 import json
 import itertools
@@ -12,12 +13,10 @@ import time
 import types
 import argparse
 
-from AGRlib import getConfig, stripNulls, buildMetaObject, makeOneOfConstraint, doQuery, makePubRef
+from AGRlib import stripNulls, buildMetaObject, makeOneOfConstraint, doQuery, makePubRef
 
-cp = getConfig()
-
-MOUSEMINE     = cp.get("DEFAULT","MOUSEMINEURL")
-GLOBALTAXONID = cp.get("DEFAULT","GLOBALTAXONID")
+MOUSEMINE     = os.environ["MOUSEMINEURL"]
+GLOBALTAXONID = os.environ["GLOBALTAXONID"]
 
 # IDs of genotypes to omit (the "Not applicable" and the "Not specified" genotypes)
 SKIP = ["MGI:2166309", "MGI:2166310" ]

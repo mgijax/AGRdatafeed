@@ -21,10 +21,11 @@
 #
 
 import sys
+import os
 import argparse
 import json
 from itertools import chain, groupby
-from AGRlib import getConfig, stripNulls, buildMgiDataProviderObject, buildMetaObject, getTimeStamp, makeOneOfConstraint, doQuery, makePubRef
+from AGRlib import stripNulls, buildMgiDataProviderObject, buildMetaObject, getTimeStamp, makeOneOfConstraint, doQuery, makePubRef
 import heapq
 
 #
@@ -32,15 +33,9 @@ code2eco = {
   "TAS" : "ECO:0000033"
 }
 
-# load config settings
-cp = getConfig()
-
-MOUSEMINE    = cp.get("DEFAULT","MOUSEMINEURL")
-TAXONID         = cp.get("DEFAULT","TAXONID")
-MOUSETAXONID    = cp.get("DEFAULT","GLOBALTAXONID")
-DO_GENES        = cp.getboolean("dafFile","DO_GENES")
-DO_ALLELES      = cp.getboolean("dafFile","DO_ALLELES")
-DO_GENOS        = cp.getboolean("dafFile","DO_GENOS")
+MOUSEMINE    = os.environ["MOUSEMINEURL"]
+TAXONID         = os.environ["TAXONID"]
+MOUSETAXONID    = os.environ["GLOBALTAXONID"]
 
 ########
 # Returns an iterator over the disease annotation for sequence features or genotypes, depending

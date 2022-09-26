@@ -6,6 +6,7 @@
 #
 
 import sys
+import os
 import re
 import json
 import itertools
@@ -15,7 +16,7 @@ import argparse
 from emapa_lib import mkWhereExpressedObj
 
 # nonstandard dependencies
-from AGRlib import stripNulls, buildMetaObject, doQuery, makePubRef, getConfig, getTimeStamp
+from AGRlib import stripNulls, buildMetaObject, doQuery, makePubRef, getTimeStamp
 
 TIMESTAMP = getTimeStamp()
 
@@ -26,11 +27,8 @@ AGE2BIN = [
 ]
 
 #-----------------------------------
-# load config settings
 
-cp = getConfig()
-
-MOUSEMINE     = cp.get("DEFAULT","MOUSEMINEURL")
+MOUSEMINE     = os.environ["MOUSEMINEURL"]
 
 #-----------------------------------
 def parseCmdLine():
@@ -133,7 +131,11 @@ def findUberonTerm (ageMin, ageMax) :
 
 #-----------------------------------
 def getStageObj (obj) :
-    u = findUberonTerm(obj["samples.ageMin"], obj["samples.ageMax"])
+    try:
+        u = findUberonTerm(obj["samples.ageMin"], obj["samples.ageMax"])
+    except:
+        raise RuntimeError("Could not find Uberon age term for:" + str(obj))
+
     return {
         "stageName" : "TS" + obj["samples.stage"],
         "stageUberonSlimTerm": {"uberonTerm":u}
@@ -352,6 +354,7 @@ htSamples = '''
             "
         >
         <constraint path="HTExperiment.samples.organism.taxonId" op="=" value="10090"/>
+        <constraint path="HTExperiment.samples.ageMin" op="!=" value="-1"/>
     </query>
     '''
 #-----------------------------------

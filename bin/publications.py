@@ -5,9 +5,12 @@
 #
 
 import sys
+import os
 import json
 import argparse
-from AGRlib import getConfig, stripNulls, buildMetaObject, makeOneOfConstraint, sql, getTimeStamp
+from AGRlib import stripNulls, buildMetaObject, makeOneOfConstraint, sql, getTimeStamp
+
+MOUSEMINE     = os.environ["MOUSEMINEURL"]
 
 AGR_REF_CATS = [
     "Research Article",
@@ -65,6 +68,10 @@ REFS_Q = '''
         BIB_Refs b
         LEFT OUTER JOIN BIB_Books bb ON b._refs_key = bb._refs_key
         JOIN BIB_Citation_cache bc ON b._refs_key = bc._refs_key
+
+    /* optional WHERE clause */
+    %s 
+
     '''
 
 def getExchangeObj (r) :
@@ -90,17 +97,17 @@ def getObj (r, which) :
         #
         return {
             'primaryId'        : primaryId,
-            'title'            : r['title'],
+            'title'            : r['title'] if r['title'] else '',
             'authors'          : getAuthors(r, primaryId),
             'datePublished'    : r['date'],
             'dateLastModified' : getTimeStamp(r['modification_date']),
-            'volume'           : r['vol'],
-            'pages'            : r['pgs'],
-            'abstract'         : r['abstract'],
-            'citation'         : r['citation'],
-            'issueName'        : r['issue'],
+            'volume'           : r['vol'] if r['vol'] else '',
+            'pages'            : r['pgs'] if r['pgs'] else '',
+            'abstract'         : r['abstract'] if r['abstract'] else '',
+            'citation'         : r['citation'] if r['citation'] else '',
+            'issueName'        : r['issue'] if r['issue'] else '',
             'allianceCategory' : getAllianceCategory(r),
-            'resourceAbbreviation' : r['journal'] or r['book_title'],
+            'resourceAbbreviation' : r['journal'] or r['book_title'] or '',
             'MODReferenceTypes' : [{ 'referenceType' : r['referencetype'], 'source' : 'MGI' }],
             'tags'              : getTags(r, primaryId),
             'crossReferences'   : [{'id': r['mgiid'],'pages':['reference']}],
@@ -125,6 +132,8 @@ def parseAuthor (s) :
     }
 
 def getAuthors (r, pid) :
+    if r['authors'] is None or r['authors'] == "":
+        return []
     authors = list(map(parseAuthor, r['authors'].split(';')))
     for a in authors:
         aid = (a['name'] + pid).replace(" ", "")
@@ -143,6 +152,13 @@ def getTags (r, pid) :
 def getArgs():
     parser = argparse.ArgumentParser()
     parser.add_argument(
+        "-p",
+        dest="which",
+        choices=["all", "pubmed", "nonpubmed"],
+        default="all",
+        help="Which publications to output. all=all pubs in long form; pubmed=pubmed pubs in exchange form; nonpubmed=Non-pubmed pubs in long form."
+        )
+    parser.add_argument(
         "-s",
         dest="doSample",
         action="store_true",
@@ -150,23 +166,23 @@ def getArgs():
         help="Just do a small sample for dev purpposes."
         )
     parser.add_argument(
-        "-p",
-        dest="which",
-        choices=["all", "pubmed", "nonpubmed"],
-        default="all",
-        help="Which publications to output. all=all pubs in long form; pubmed=pubmed pubs in exchange form; nonpubmed=Non-pubmed pubs in long form."
+        "-i",
+        dest="mgiId",
+        default=None,
+        help="Just run for this MGI publication id (for debugging)."
         )
     return parser.parse_args()
 
 def main () :
     opts = getArgs()
+    whereClause = ''
+    if opts.mgiId:
+        whereClause = "WHERE bc.mgiid = '%s'" % opts.mgiId
     #
-    cp = getConfig()
-    MOUSEMINE     = cp.get("DEFAULT","MOUSEMINEURL")
     print('{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(MOUSEMINE), indent=2))
     #
     n = 0
-    for r in sql(REFS_Q):
+    for r in sql(REFS_Q % whereClause):
         obj = getObj(r, opts.which)
         if obj:
             if n > 0: sys.stdout.write(",")
