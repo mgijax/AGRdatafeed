@@ -1,7 +1,7 @@
 #
 # genotype.py
 #
-# Only want genotypes where any/all alleles are also in the alleleInfo file.
+# Want all genotypes that have disease or pheno annotations.
 #
 
 import sys
@@ -61,7 +61,8 @@ def getJsonObj (g, includedAlleles) :
     # Skip if that is not the case.
     for c in comps:
       if c["alleleID"] not in includedAlleles:
-        return None
+        #return None
+        pass
     #
     return {
       "primaryID" : g["primaryIdentifier"],
@@ -82,8 +83,7 @@ def getJsonObj (g, includedAlleles) :
 def main():
   args = parseCmdLine()
   ids = args.identifiers
-  xtra = makeOneOfConstraint('Genotype.alleles.feature.primaryIdentifier', ids)
-  xtra2 = makeOneOfConstraint('Allele.feature.primaryIdentifier', ids)
+  xtra = makeOneOfConstraint('Genotype.primaryIdentifier', ids)
 
   # Process Genotype-AllelePairs. Build index from genotype id to list of component (allele+state)
   id2components = {}
@@ -97,7 +97,7 @@ def main():
 
   # Build set of MGI ids of alleles being sent to the alliance
   includedAlleles = set()
-  for r in doQuery(q_alleles % xtra2, MOUSEMINE):
+  for r in doQuery(q_alleles, MOUSEMINE):
     includedAlleles.add(r['primaryIdentifier'])
 
   # Process genotypes. For each one, find / attach its components if any and output.
@@ -157,7 +157,6 @@ q_alleles = '''<query
   <constraint code="E" path="Allele.alleleType" op="IS NULL" />
   <constraint code="C" path="Allele.isWildType" op="=" value="false" />
   <constraint code="D" path="Allele.ontologyAnnotations" op="IS NOT NULL" />
-  %s
 </query>
 '''
 q_genotypes = '''<query
@@ -169,6 +168,7 @@ q_genotypes = '''<query
     "
   sortOrder="Genotype.primaryIdentifier asc"
   >
+  <constraint path="Genotype.ontologyAnnotations" op="IS NOT NULL"/>
   %s
 </query>
 '''
