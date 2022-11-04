@@ -155,7 +155,7 @@ def getTimeStamp(s = None):
 
 #---------------------------------
 def sql (query) :
-    sys.stderr.write("SQL query: " + query)
+    sys.stderr.write("\nSQL query: " + query)
     return db.sql(query)
 
 #-----------------------------------

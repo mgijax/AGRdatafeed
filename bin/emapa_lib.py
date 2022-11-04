@@ -5,11 +5,7 @@ import json
 import argparse
 
 # nonstandard dependencies
-from AGRlib import stripNulls, buildMetaObject, doQuery, makeOneOfConstraint, makePubRef
-
-#-----------------------------------
-# load config settings
-MOUSEMINE  = os.environ["MOUSEMINEURL"]
+from AGRlib import stripNulls, buildMetaObject, sql, makeOneOfConstraint, makePubRef
 
 #-----------------------------------
 def log(msg):
@@ -59,49 +55,58 @@ highlevelemapa = set(emapa2uberon.keys())
 
 #-----------------------------------
 # Returns a mapping from EMAPA id to EMAPA term obj
-# Each term has attributes: name, startsAt, endsAt/
-def loadEMAPA (url):
+# Each term has attributes: term, startstage, endstage/
+def loadEMAPA ():
     log('Loading EMAPA...')
     id2emapa = {}
     q = '''
-    <query
-      model="genomic"
-      view="
-      EMAPATerm.identifier
-      EMAPATerm.name
-      EMAPATerm.startsAt
-      EMAPATerm.endsAt
-      "
-      >
-      </query>
+    SELECT aa.accid, vt.term, vte.startstage, vte.endstage
+    FROM VOC_Term_Emapa vte, VOC_Term vt, ACC_Accession aa
+    WHERE vt._term_key = vte._term_key
+    AND vt._term_key = aa._object_key
+    AND aa._mgitype_key = 13
+    AND aa._logicaldb_key = 169
+    AND aa.preferred = 1
     '''
-    for t in doQuery(q, url):
-        t["startsAt"] = int(t["startsAt"])
-        t["endsAt"] = int(t["endsAt"])
-        id2emapa[t["identifier"]] = t
+    for t in sql(q):
+        t["startstage"] = int(t["startstage"])
+        t["endstage"] = int(t["endstage"])
+        id2emapa[t["accid"]] = t
     log('Loaded %d EMAPA terms.'%len(id2emapa))
     return id2emapa
 
 #-----------------------------------
 # Loads/returns a mapping from EMAPA id to the IDs of its immediate parents
-def loadEMAPAParents(url):
+def loadEMAPAParents():
     log('Loading EMAPA parents...')
 
-    q = '''<query
-    name=""
-    model="genomic"
-    view="OntologyRelation.childTerm.identifier
-    OntologyRelation.parentTerm.identifier"
-    longDescription=""
-    sortOrder="OntologyRelation.childTerm.identifier asc"
-    >
-        <constraint path="OntologyRelation.childTerm" type="EMAPATerm"/>
-        <constraint path="OntologyRelation.parentTerm" type="EMAPATerm"/>
-        <constraint path="OntologyRelation.direct" op="=" value="true"/>
-    </query>'''
+    q = '''
+        SELECT ca.accid as childid, pa.accid as parentid
+        FROM 
+          DAG_Edge e, 
+          DAG_Node cn, 
+          VOC_Term ct, 
+          ACC_Accession ca,
+          DAG_Node pn, 
+          VOC_Term pt,
+          ACC_Accession pa
+        WHERE e._child_key = cn._node_key
+        AND e._parent_key = pn._node_key
+        AND cn._object_key = ct._term_key
+        AND pn._object_key = pt._term_key
+        AND pt._vocab_key = 90
+        AND pt._term_key = pa._object_key
+        AND pa._mgitype_key = 13
+        AND pa._logicaldb_key = 169
+        AND pa.preferred = 1
+        AND ct._term_key = ca._object_key
+        AND ca._mgitype_key = 13
+        AND ca._logicaldb_key = 169
+        AND ca.preferred = 1
+        '''
     id2pids = {}
-    for i,r in enumerate(doQuery(q, url)):
-        id2pids.setdefault(r["childTerm.identifier"], []).append(r["parentTerm.identifier"])
+    for i,r in enumerate(sql(q)):
+        id2pids.setdefault(r["childid"], []).append(r["parentid"])
     log('Loaded %d parent/child relations.' % i)
     return id2pids
 
@@ -114,9 +119,9 @@ def ancestorsAt (termId, stage) :
     global id2emapa, id2pids
     ancestors = set([termId])
     def _(t):
-        for pid in id2pids.get(t["identifier"],[]):
+        for pid in id2pids.get(t["accid"],[]):
             p = id2emapa[pid]
-            if p["startsAt"] <= stage and p["endsAt"] >= stage:
+            if p["startstage"] <= stage and p["endstage"] >= stage:
                 ancestors.add(pid)
                 _(p)
         
@@ -126,7 +131,7 @@ def ancestorsAt (termId, stage) :
 #
 def mkWhereExpressedObj (eid, stage) :
     global id2emapa, id2pids
-    structureName = id2emapa[eid]["name"]
+    structureName = id2emapa[eid]["term"]
     ancs = ancestorsAt(eid, stage)
     # the high level EMAPA ids this annot rolls up to (intersect my ancestors with the HL EMAPA set)
     hla = highlevelemapa & ancs
@@ -148,6 +153,6 @@ def mkWhereExpressedObj (eid, stage) :
     }
 
 #
-id2emapa = loadEMAPA(MOUSEMINE)
-id2pids = loadEMAPAParents(MOUSEMINE)
+id2emapa = loadEMAPA()
+id2pids = loadEMAPAParents()
 
