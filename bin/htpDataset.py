@@ -190,7 +190,7 @@ def main() :
     args = parseCmdLine()
 
     first = True
-    mdo = json.dumps(buildMetaObject(MOUSEMINE), indent=2)
+    mdo = json.dumps(buildMetaObject(), indent=2)
     print('{\n  "metaData": %s,\n  "data": [' % mdo)
     for obj in getHTdata(args.dump):
         if not first: print(",", end=' ')

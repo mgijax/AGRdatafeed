@@ -190,7 +190,7 @@ def main():
   ids = args.identifiers
   #
   query = getAlleles(MOUSEMINE, ids)
-  print('{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(MOUSEMINE), indent=2))
+  print('{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(), indent=2))
   first = True
   for a in query:
     if not first: print(",", end=' ')

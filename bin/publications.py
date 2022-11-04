@@ -179,7 +179,7 @@ def main () :
     if opts.mgiId:
         whereClause = "WHERE bc.mgiid = '%s'" % opts.mgiId
     #
-    print('{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(MOUSEMINE), indent=2))
+    print('{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(), indent=2))
     #
     n = 0
     for r in sql(REFS_Q % whereClause):

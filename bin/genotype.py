@@ -103,7 +103,7 @@ def main():
   # Process genotypes. For each one, find / attach its components if any and output.
   # Screen for genotypes to be deleted.
   #
-  print('{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(MOUSEMINE), indent=2))
+  print('{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(), indent=2))
   first = True
   for g in doQuery(q_genotypes % xtra, MOUSEMINE):
     gid = g["primaryIdentifier"]

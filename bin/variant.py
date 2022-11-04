@@ -7,7 +7,7 @@ import os
 import re
 import subprocess
 import json
-from AGRlib import stripNulls, buildMetaObject, makeOneOfConstraint, doQuery, sql
+from AGRlib import stripNulls, buildMetaObject, makeOneOfConstraint, sql
 
 MOUSEMINE     = os.environ["MOUSEMINEURL"]
 GLOBALTAXONID = os.environ["GLOBALTAXONID"]
@@ -173,7 +173,7 @@ def main () :
         vk2notes[x['_variant_key']] = { 'note' : x['note'] }
 
     n = 0
-    print('{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(MOUSEMINE), indent=2))
+    print('{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(), indent=2))
     for x in sql(Q_VARIANTS):
       x['build'] = "GRCm39" # FIXME: should get this from the DB
       x['type'] = vk2types.get(x['_variant_key'], None)

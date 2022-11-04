@@ -16,9 +16,7 @@
 import sys
 import os
 import json
-from AGRlib import stripNulls, buildMetaObject, makeOneOfConstraint, sql, doQuery
-
-MOUSEMINE = os.environ["MOUSEMINEURL"]
+from AGRlib import stripNulls, buildMetaObject, makeOneOfConstraint, sql
 
 EXPRESSES_cat_key = 1004
 DRIVER_cat_key = 1006
@@ -28,8 +26,8 @@ def log (s) :
 
 def loadSubmittedAlleles () :
     aids = set()
-    for a in doQuery(qAlleles, MOUSEMINE):
-        aids.add(a["primaryIdentifier"])
+    for a in sql(qAlleles):
+        aids.add(a["accid"])
     return aids
     
 ak2nmdId = {} # allele_key -> non-mouse-driver ID
@@ -100,7 +98,7 @@ def main () :
         aid2rels.setdefault(r['allele'],[]).append(r)
     aids = list(aid2rels.keys())
     #
-    print('{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(MOUSEMINE), indent=2))
+    print('{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(), indent=2))
     first = True
     for aid in aids:
         if not aid in submittedIds:
@@ -190,20 +188,18 @@ qNonMouseDrivers = '''
     AND a._logicaldb_key in (64,47,172) /* HGNC, RGD, ZFIN */
     ''' % DRIVER_cat_key 
 
-# query for alleles being submitted to the Alliance. This is a MOUSEMINE query!
-qAlleles = '''<query
-      model="genomic"
-      view="Allele.primaryIdentifier"
-      constraintLogic="A and B and C and (D or E)"
-      >
-      <constraint code="A" path="Allele.organism.taxonId" op="=" value="10090" />
-      <constraint code="B" path="Allele.alleleType" op="NONE OF">
-        <value>QTL</value>
-      </constraint>
-      <constraint code="C" path="Allele.isWildType" op="=" value="false" />
-      <constraint code="D" path="Allele.glTransmission" op="!=" value="Cell Line"/>
-      <constraint code="E" path="Allele.glTransmission" op="IS NULL" />
-      </query>
+# query for alleles being submitted to the Alliance. 
+qAlleles = '''
+    SELECT aa.accid
+    FROM ALL_Allele a, ACC_Accession aa
+    WHERE a._allele_key = aa._object_key
+    AND aa._mgitype_key = 11
+    AND aa._logicaldb_key = 1
+    AND aa.preferred = 1
+    AND a._transmission_key != 3982953 /* Cell line */
+    AND a._allele_type_key != 847130 /* QTL */
+    AND a._allele_status_key in (847114, 3983021) /* approved, autoload */
+    AND a.iswildtype = 0
     '''
 
 # go!

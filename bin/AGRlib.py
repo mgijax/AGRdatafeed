@@ -85,7 +85,7 @@ def doQuery(q, url):
 #----------------------------------
 # Constructs and returns the metaData (header) for the dump file.
 #
-def buildMetaObject(mouseMineUrl):
+def buildMetaObject():
     # get current date
     currentDate = getTimeStamp()
 
@@ -93,17 +93,8 @@ def buildMetaObject(mouseMineUrl):
     #   of the MGI DataSource obj
     # For example, "Mouse Genome Informatics [MGI 6.07 2017-01-24]"
     release = None
-    q = '''<query 
-      model="genomic"
-      view="DataSource.name DataSource.description"
-      >
-      <constraint path="DataSource.name" op="=" value="MGI"/>
-      </query>
-      '''
-    for r in doInterMineQuery(q,mouseMineUrl):
-      i = r[1].find('[')
-      release = r[1][i:].strip()[1:-1].strip()
-
+    r = sql('select * from mgi_dbinfo')[0]
+    release = r['public_version'] + " " + r['lastdump_date'].split()[0]
     return {
     "dataProvider" : buildMgiDataProviderObject(),
     "dateProduced" : currentDate,

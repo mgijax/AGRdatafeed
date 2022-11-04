@@ -241,7 +241,7 @@ def main(args):
                 obj = id2gene.get(r['primaryIdentifier'], None)
                 if obj:
                     obj.setdefault(label,[]).append(r)
-    print('{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(MOUSEMINE), indent=2))
+    print('{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(), indent=2))
     first=True
     for i in id2gene:
         obj = id2gene[i]

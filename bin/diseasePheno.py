@@ -351,7 +351,7 @@ def getArgs():
 def main():
     args = getArgs()
     service = MOUSEMINE
-    mdo = buildMetaObject(service)
+    mdo = buildMetaObject()
     print('{"metaData": %s,' % json.dumps(mdo)) 
     print(' "data"    : [')
     if args.doDiseases:

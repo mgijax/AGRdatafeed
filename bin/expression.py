@@ -290,7 +290,7 @@ def main():
   '''
 
   exprData = getExpressionData(MOUSEMINE, ids)
-  print('{ "metaData" : %s, ' % json.dumps(buildMetaObject(MOUSEMINE)))
+  print('{ "metaData" : %s, ' % json.dumps(buildMetaObject()))
   print('  "data" : [')
   for i,r in enumerate(exprData):
       if i: print(",", end=' ')
