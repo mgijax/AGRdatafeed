@@ -198,7 +198,7 @@ def main () :
 
 #
 Q_VARIANTS = '''
-  select distinct   /* need distinct b.c. of dupes in alll_variant_sequence */
+  select distinct   /* need distinct b.c. of dupes in all_variant_sequence */
       v._variant_key,
       m.chromosome,
       aa.accid as allele_id,

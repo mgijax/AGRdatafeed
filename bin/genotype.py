@@ -13,9 +13,9 @@ import time
 import types
 import argparse
 
-from AGRlib import stripNulls, buildMetaObject, makeOneOfConstraint, doQuery, makePubRef
+from AGRlib import stripNulls, buildMetaObject, makeOneOfConstraint, sql, makePubRef
+from AGRqlib import qSubmittedAlleleIds, qSubmittedGenotypes, qGenotypeAllelePair
 
-MOUSEMINE     = os.environ["MOUSEMINEURL"]
 GLOBALTAXONID = os.environ["GLOBALTAXONID"]
 
 # IDs of genotypes to omit (the "Not applicable" and the "Not specified" genotypes)
@@ -46,38 +46,33 @@ def htmlify (s) :
 
 # Returns a JSON object for the given genotype
 def getJsonObj (g, includedAlleles) :
-  try:
     # Turn AllelePairs  into genotypeComponents.
     # Have to guard against genotypes having duplicate AllelePair records (it happens).
-    pts = set([(c["allelePairs.allele1.primaryIdentifier"],
-            mgi2geno[c["allelePairs.pairState"]]) for c in g["components"]])
+    pts = set([(c["alleleId"], mgi2geno.get(c["pairState"], None)) for c in g["components"]])
     #
     comps = [{
       "alleleID" : p[0],
       "zygosity" : p[1]
     } for p in pts ]
     #
-    # Test that all component alleles are in the included set. 
-    # Skip if that is not the case.
     for c in comps:
-      if c["alleleID"] not in includedAlleles:
+      if c["zygosity"] is None:
         #return None
         pass
     #
+    name = "%s [background:] %s" % (g["alleles"], g["strain"])
     return {
-      "primaryID" : g["primaryIdentifier"],
+      "primaryID" : g["genotypeId"],
       "subtype" : "genotype",
-      "name" :  htmlify(g["name"].strip()),
+      "name" :  htmlify(name),
       #"nameText" : g["name"].strip(),
       "taxonId" : GLOBALTAXONID,
       "crossReference" : {
-        "id" : g["primaryIdentifier"],
+        "id" : g["genotypeId"],
         "pages" : [ "genotype" ]
       },
       "affectedGenomicModelComponents" :  comps
     }
-  except:
-    return None
 
 # Main prog. Build the query, run it, and output 
 def main():
@@ -88,27 +83,22 @@ def main():
   # Process Genotype-AllelePairs. Build index from genotype id to list of component (allele+state)
   id2components = {}
   toDelete = set(SKIP)
-  for r in doQuery(q_genotypeAlleles % xtra, MOUSEMINE):
-    gid = r["primaryIdentifier"]
-    try:
-      id2components.setdefault(gid, []).append(r)
-    except:
-      toDelete.add(gid)
+  for r in sql(qGenotypeAllelePair):
+    gid = r["genotypeId"]
+    id2components.setdefault(gid, []).append(r)
 
   # Build set of MGI ids of alleles being sent to the alliance
   includedAlleles = set()
-  for r in doQuery(q_alleles, MOUSEMINE):
-    includedAlleles.add(r['primaryIdentifier'])
+  for r in sql(qSubmittedAlleleIds):
+    includedAlleles.add(r['mgiid'])
 
   # Process genotypes. For each one, find / attach its components if any and output.
   # Screen for genotypes to be deleted.
   #
   print('{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(), indent=2))
   first = True
-  for g in doQuery(q_genotypes % xtra, MOUSEMINE):
-    gid = g["primaryIdentifier"]
-    if gid in toDelete:
-      continue
+  for g in sql(qSubmittedGenotypes):
+    gid = g["genotypeId"]
     g["components"] = id2components.get(gid,[])
     gobj = getJsonObj(g, includedAlleles)
     if gobj:
@@ -141,54 +131,9 @@ mgi2geno = {
  "Indeterminate" : "GENO:0000137",
  "Hemizygous X-linked" : "GENO:0000604",
  "Hemizygous Y-linked" : "GENO:0000605",
- # "Hemizygous Deletion" : ??? - no geno term for this one (as of 18-03-2019)
+ "Hemizygous Deletion" : "GENO:0000134", # no term for hemizygous deletion. Use plain hemizygous.
  "Homoplasmic" : "GENO:0000602",
  "Heteroplasmic" : "GENO:0000603"
 }
-
-q_alleles = '''<query
-  model="genomic"
-  view="Allele.primaryIdentifier"
-  constraintLogic="A and (B or E) and C and D"
-  sortOrder="Allele.primaryIdentifier asc"
-  >
-  <constraint code="A" path="Allele.organism.taxonId" op="=" value="10090" />
-  <constraint code="B" path="Allele.alleleType" op="NONE OF"><value>QTL</value></constraint>
-  <constraint code="E" path="Allele.alleleType" op="IS NULL" />
-  <constraint code="C" path="Allele.isWildType" op="=" value="false" />
-  <constraint code="D" path="Allele.ontologyAnnotations" op="IS NOT NULL" />
-</query>
-'''
-q_genotypes = '''<query
-  model="genomic"
-  view="
-    Genotype.primaryIdentifier
-    Genotype.name
-    Genotype.background.primaryIdentifier
-    "
-  sortOrder="Genotype.primaryIdentifier asc"
-  >
-  <constraint path="Genotype.ontologyAnnotations" op="IS NOT NULL"/>
-  %s
-</query>
-'''
-
-q_genotypeAlleles = '''<query
-  model="genomic"
-  view="
-    Genotype.primaryIdentifier
-    Genotype.allelePairs.allele1.primaryIdentifier
-    Genotype.allelePairs.allele1.symbol
-    Genotype.allelePairs.pairState
-    Genotype.allelePairs.allele2.primaryIdentifier
-    Genotype.allelePairs.allele2.symbol
-    Genotype.allelePairs.allele2.isWildType
-    "
-  sortOrder="Genotype.primaryIdentifier asc Genotype.allelePairs.allele1.primaryIdentifier asc"
-  >
-    <join path="Genotype.allelePairs.allele2" style="OUTER"/>
-    %s
-  </query>
-'''
 
 main()
