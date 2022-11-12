@@ -6,6 +6,7 @@ import argparse
 
 # nonstandard dependencies
 from AGRlib import stripNulls, buildMetaObject, sql, makeOneOfConstraint, makePubRef
+from AGRqlib import qEmapaTerms, qEmapaTermsAndParents
 
 #-----------------------------------
 def log(msg):
@@ -59,16 +60,7 @@ highlevelemapa = set(emapa2uberon.keys())
 def loadEMAPA ():
     log('Loading EMAPA...')
     id2emapa = {}
-    q = '''
-    SELECT aa.accid, vt.term, vte.startstage, vte.endstage
-    FROM VOC_Term_Emapa vte, VOC_Term vt, ACC_Accession aa
-    WHERE vt._term_key = vte._term_key
-    AND vt._term_key = aa._object_key
-    AND aa._mgitype_key = 13
-    AND aa._logicaldb_key = 169
-    AND aa.preferred = 1
-    '''
-    for t in sql(q):
+    for t in sql(qEmapaTerms):
         t["startstage"] = int(t["startstage"])
         t["endstage"] = int(t["endstage"])
         id2emapa[t["accid"]] = t
@@ -80,32 +72,8 @@ def loadEMAPA ():
 def loadEMAPAParents():
     log('Loading EMAPA parents...')
 
-    q = '''
-        SELECT ca.accid as childid, pa.accid as parentid
-        FROM 
-          DAG_Edge e, 
-          DAG_Node cn, 
-          VOC_Term ct, 
-          ACC_Accession ca,
-          DAG_Node pn, 
-          VOC_Term pt,
-          ACC_Accession pa
-        WHERE e._child_key = cn._node_key
-        AND e._parent_key = pn._node_key
-        AND cn._object_key = ct._term_key
-        AND pn._object_key = pt._term_key
-        AND pt._vocab_key = 90
-        AND pt._term_key = pa._object_key
-        AND pa._mgitype_key = 13
-        AND pa._logicaldb_key = 169
-        AND pa.preferred = 1
-        AND ct._term_key = ca._object_key
-        AND ca._mgitype_key = 13
-        AND ca._logicaldb_key = 169
-        AND ca.preferred = 1
-        '''
     id2pids = {}
-    for i,r in enumerate(sql(q)):
+    for i,r in enumerate(sql(qEmapaTermsAndParents)):
         id2pids.setdefault(r["childid"], []).append(r["parentid"])
     log('Loaded %d parent/child relations.' % i)
     return id2pids

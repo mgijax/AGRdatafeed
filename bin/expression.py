@@ -39,7 +39,10 @@ import types
 import argparse
 
 # nonstandard dependencies
-from AGRlib import stripNulls, buildMetaObject, doQuery, makeOneOfConstraint, makePubRef
+from AGRlib import stripNulls, buildMetaObject, sql, makeOneOfConstraint, makePubRef
+from emapa_lib import id2emapa, id2pids, ancestorsAt
+from AGRqlib import qGxdExpression
+
 
 #-----------------------------------
 # Mapping from our assay type to MMO ids
@@ -100,128 +103,35 @@ highlevelemapa = set(emapa2uberon.keys())
 #-----------------------------------
 # mappings from Theiler stages to UBERON stage term IDs
 ts2uberon = dict( \
-    [('TS%02d'%(i+1),'UBERON:0000068') for i in range(26)] + \
-    [('TS27','post embryonic, pre-adult')] + \
-    [('TS28', 'UBERON:0000113')])
-
-#-----------------------------------
-# MouseMine connection
-
-MOUSEMINE  = os.environ["MOUSEMINEURL"]
+    [(i+1,'UBERON:0000068') for i in range(26)] + \
+    [(27,'post embryonic, pre-adult')] + \
+    [(28, 'UBERON:0000113')])
 
 #-----------------------------------
 def log(msg):
     sys.stderr.write(msg + '\n')
 
-#-----------------------------------
-# Returns a mapping from EMAPA id to EMAPA term obj
-# Each term has attributes: name, startsAt, endsAt/
-def loadEMAPA (url):
-    log('Loading EMAPA...')
-    id2emapa = {}
-    q = '''
-    <query
-      model="genomic"
-      view="
-      EMAPATerm.identifier
-      EMAPATerm.name
-      EMAPATerm.startsAt
-      EMAPATerm.endsAt
-      "
-      >
-      </query>
-    '''
-    for t in doQuery(q, url):
-        t["startsAt"] = int(t["startsAt"])
-        t["endsAt"] = int(t["endsAt"])
-        id2emapa[t["identifier"]] = t
-    log('Loaded %d EMAPA terms.'%len(id2emapa))
-    return id2emapa
-
-#-----------------------------------
-# Loads/returns a mapping from EMAPA id to the IDs of its immediate parents
-def loadEMAPAParents(url):
-    log('Loading EMAPA parents...')
-
-    q = '''<query
-    name=""
-    model="genomic"
-    view="OntologyRelation.childTerm.identifier
-    OntologyRelation.parentTerm.identifier"
-    longDescription=""
-    sortOrder="OntologyRelation.childTerm.identifier asc"
-    >
-        <constraint path="OntologyRelation.childTerm" type="EMAPATerm"/>
-        <constraint path="OntologyRelation.parentTerm" type="EMAPATerm"/>
-        <constraint path="OntologyRelation.direct" op="=" value="true"/>
-    </query>'''
-    id2pids = {}
-    for i,r in enumerate(doQuery(q, url)):
-        id2pids.setdefault(r["childTerm.identifier"], []).append(r["parentTerm.identifier"])
-    log('Loaded %d parent/child relations.' % i)
-    return id2pids
-
-
-#-----------------------------------
-# Returns the IDs of all ancestors of the given term at the given stage.
-# Includes the term's own ID (ie, reflexive transitive closure)
-#
-def ancestorsAt (termId, stage, id2emapa, id2pids) :
-    ancestors = set([termId])
-    def _(t):
-        for pid in id2pids.get(t["identifier"],[]):
-            p = id2emapa[pid]
-            if p["startsAt"] <= stage and p["endsAt"] >= stage:
-                ancestors.add(pid)
-                _(p)
-        
-    _(id2emapa[termId])
-    return ancestors
 
 #-----------------------------------
 # Returns unique-ified expression assay results. 
 #
-def getExpressionData(url, ids):
+def getExpressionData(ids):
   log('Getting expression data...')
-  q = '''<query
-    model="genomic"
-    view="
-        GXDExpression.assayId
-        GXDExpression.assayType
-        GXDExpression.feature.primaryIdentifier
-        GXDExpression.stage
-        GXDExpression.structure.identifier
-        GXDExpression.publication.mgiId
-        GXDExpression.publication.pubMedId"
-    sortOrder="GXDExpression.assayId asc GXDExpression.structure.identifier asc GXDExpression.stage asc"
-    constraintLogic="A and (B or (C and D)) and E"
-    >
-      <constraint path="GXDExpression.detected" code="A" op="=" value="true"/>
-      <constraint path="GXDExpression.genotype.hasMutantAllele" code="B" op="=" value="false"/>
-      <constraint path="GXDExpression.assayType" code="C" op="=" value="In situ reporter (knock in)"/>
-      <constraint path="GXDExpression.genotype.zygosity" code="D" op="=" value="ht"/>
-      %s
-    </query>
-  ''' % makeOneOfConstraint('GXDExpression.feature.primaryIdentifier', ids)
   prev = None
   qcount = 0
   ycount = 0
-  for r in doQuery(q, MOUSEMINE):
+  for r in sql(qGxdExpression):
       qcount += 1
       if not prev \
       or r["assayId"] != prev["assayId"] \
       or r["stage"] != prev["stage"] \
-      or r["structure.identifier"] != prev["structure.identifier"]:
+      or r["structureId"] != prev["structureId"]:
           ycount += 1
           yield r
       #
       prev = r
       #
   log('getExpressionData: %d results => %d unique results' % (qcount, ycount))
-
-#
-def getWhereExpressedObj (eid) :
-    pass
 
 # Here is the magic by which an object returned by the query is converted to an object
 # conforming to the spec.
@@ -230,12 +140,12 @@ def getJsonObj(obj, structureName, uids):
   mkid = lambda i,p: None if i is None else p+i
   try:
       return stripNulls({
-          'geneId': obj['feature.primaryIdentifier'],
-          'evidence' : makePubRef(obj['publication.pubMedId'], obj['publication.mgiId']),
+          'geneId': obj['geneId'],
+          'evidence' : makePubRef(obj['refPubmedId'], obj['refMgiId']),
           'assay': assayType2mmo[obj['assayType']],
           'dateAssigned' : '2018-07-18T13:27:43-04:00', # FIXME
           'whereExpressed': {
-              'anatomicalStructureTermId' : obj['structure.identifier'],
+              'anatomicalStructureTermId' : obj['structureId'],
               'anatomicalStructureUberonSlimTermIds': [{'uberonTerm':u} for u in uids],
               'whereExpressedStatement' : structureName
           },  
@@ -271,33 +181,14 @@ def main():
   args = parseCmdLine()
   ids = args.identifiers
   #
-  id2emapa = loadEMAPA(MOUSEMINE)
-  id2pids = loadEMAPAParents(MOUSEMINE)
-
-  '''
-  print 'Telencephalon ancestors at stage 15:'
-  ancs = ancestorsAt('EMAPA:16910', 15, id2emapa, id2pids)
-  for aid in ancs:
-      a = id2emapa[aid]
-      print a.identifier, a.name, a.startsAt, a.endsAt
-      
-  print 'Telencephalon ancestors at stage 18:'
-  ancs = ancestorsAt('EMAPA:16910', 18, id2emapa, id2pids)
-  for aid in ancs:
-      a = id2emapa[aid]
-      print a.identifier, a.name, a.startsAt, a.endsAt
-      
-  '''
-
-  exprData = getExpressionData(MOUSEMINE, ids)
+  exprData = getExpressionData(ids)
   print('{ "metaData" : %s, ' % json.dumps(buildMetaObject()))
   print('  "data" : [')
   for i,r in enumerate(exprData):
       if i: print(",", end=' ')
-      eid = r['structure.identifier']
-      structureName = id2emapa[eid]["name"]
-      s = int(r['stage'][2:])
-      ancs = ancestorsAt(eid, s, id2emapa, id2pids)
+      eid = r['structureId']
+      structureName = id2emapa[eid]["term"]
+      ancs = ancestorsAt(eid, r['stage'])
       # the high level EMAPA ids this annot rolls up to (intersect my ancestors with the HL EMAPA set)
       hla = highlevelemapa & ancs
       # the uberon IDs these map to
