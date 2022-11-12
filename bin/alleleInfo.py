@@ -21,95 +21,40 @@ import types
 import os
 import argparse
 
-# nonstandard dependencies
-from AGRlib import stripNulls, buildMetaObject, makeOneOfConstraint, doQuery, dataProviders
+#
+from AGRlib import stripNulls, buildMetaObject, makeOneOfConstraint, sql, dataProviders
+from AGRqlib import qAlleles, qAlleleSynonyms, qExpressors
 
 #-----------------------------------
-MOUSEMINE     = os.environ["MOUSEMINEURL"]
 GLOBALTAXONID = os.environ["GLOBALTAXONID"]
 
 #-----------------------------------
 #
-def getAlleles(url,ids):
+def getAlleles(ids):
     qopts = {
       'xtraConstraint': makeOneOfConstraint('Allele.feature.primaryIdentifier', ids)
     }
 
     # Query for alleles that have expressed component 
-    qexpressors = '''<query
-        model="genomic"
-        view="
-            MGIExpressesComponent.allele.primaryIdentifier
-            MGIExpressesComponent.allele.symbol
-            "
-        ></query>
-        '''
     expressors = set()
-    for r in doQuery(qexpressors, url):
-        expressors.add(r['allele.primaryIdentifier'])
+    for r in sql(qExpressors):
+        expressors.add(r['_allele_key'])
 
     # Query allele synonyms, build index of id -> synonyms
-    # 2020-12-18: change constraints:
-    #    - drop ontology annotation requirement
-    #    - drop null allele type restriction
-    #    - add exclusion when germline transmission = 'cell line'
-    qsynonyms = '''<query
-      model="genomic"
-      view="
-      Allele.primaryIdentifier
-      Allele.synonyms.value
-      "
-      constraintLogic="A and B and C and D"
-      sortOrder="Allele.primaryIdentifier asc"
-      >
-      <constraint code="A" path="Allele.organism.taxonId" op="=" value="10090" />
-      <constraint code="B" path="Allele.alleleType" op="NONE OF">
-        <value>QTL</value>
-      </constraint>
-      <constraint code="C" path="Allele.isWildType" op="=" value="false" />
-      <constraint code="D" path="Allele.glTransmission" op="!=" value="Cell Line"/>
-      %(xtraConstraint)s
-      </query>
-    ''' % qopts
     aid2syns = {}
-    for r in doQuery(qsynonyms, url):
-      aid2syns.setdefault(r['primaryIdentifier'], set()).add(r['synonyms.value'])
+    for r in sql(qAlleleSynonyms):
+      aid2syns.setdefault(r['_allele_key'], set()).add(r['synonym'])
 
     # Main allele query.
-    qalleles = '''<query
-      model="genomic"
-      view="
-      Allele.primaryIdentifier
-      Allele.symbol
-      Allele.name
-      Allele.alleleType
-      Allele.molecularNote
-      Allele.feature.primaryIdentifier
-      Allele.feature.mgiType
-      Allele.drivenBy
-      "
-      constraintLogic="A and B and C and (D or E)"
-      sortOrder="Allele.primaryIdentifier asc"
-      >
-      <constraint code="A" path="Allele.organism.taxonId" op="=" value="10090" />
-      <constraint code="B" path="Allele.alleleType" op="NONE OF">
-        <value>QTL</value>
-      </constraint>
-      <constraint code="C" path="Allele.isWildType" op="=" value="false" />
-      <constraint code="D" path="Allele.glTransmission" op="!=" value="Cell Line"/>
-      <constraint code="E" path="Allele.glTransmission" op="IS NULL" />
-      %(xtraConstraint)s
-      </query>
-    ''' % qopts
-    
-    for r in doQuery(qalleles, url):
-      aid = r['primaryIdentifier']
-      r['synonyms'] = list(aid2syns.get(aid, []))
+    for r in sql(qAlleles):
+      ak = r['_allele_key']
+      aid = r['alleleId']
+      r['synonyms'] = list(aid2syns.get(ak, []))
       # If the allele has a driver or has expressed components, then the allele has a
       # "construct". At the Alliance, constructs must have an ID, but at MGI they don't (they're not objects).
-      # So we create a fake ID for it. This are not displayed and are not used to create links.
+      # So we create a fake ID for it. These are not displayed and are not used to create links.
       # Constructs are dumped separately. Here we just need the ID
-      if r['drivenBy'] or aid in expressors:
+      if r['drivenBy'] or ak in expressors:
           r['construct'] = aid + "_con"
       #
       yield r
@@ -128,7 +73,7 @@ def insertSups (s) :
 
 #
 def formatXrefs(obj):
-    return [{"id":obj["primaryIdentifier"], "pages":["allele", "allele/references"]}]
+    return [{"id":obj["alleleId"], "pages":["allele", "allele/references"]}]
 
 # Here is the magic by which an object returned by the query is converted to an object
 # conforming to the spec.
@@ -149,18 +94,18 @@ def getJsonObj(obj):
   syns.sort()
   ###
   isTgAllele = obj["alleleType"] == "Transgenic"
-  isTgMarker = obj["feature.mgiType"] == "transgene"
+  isTgMarker = obj["markerType"] == "transgene"
   ###
-  gene = None if isTgAllele and isTgMarker else obj["feature.primaryIdentifier"]
+  gene = None if isTgAllele and isTgMarker else obj["markerId"]
 
   aors = [] # alleleObjectRelations
   if gene:
       aors.append({"objectRelation": {"associationType":"allele_of","gene":gene }})
-  if 'construct' in obj:
+  if obj.has_key('construct'):
       aors.append({"objectRelation": {"associationType":"contains","construct":obj['construct'] }})
   #
   return stripNulls({
-    "primaryId"         : obj["primaryIdentifier"],
+    "primaryId"         : obj["alleleId"],
     "symbol"            : insertSups(obj["symbol"]),
     "symbolText"        : obj["symbol"],
     "taxonId"           : GLOBALTAXONID,
@@ -189,7 +134,7 @@ def main():
   args = parseCmdLine()
   ids = args.identifiers
   #
-  query = getAlleles(MOUSEMINE, ids)
+  query = getAlleles(ids)
   print('{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(), indent=2))
   first = True
   for a in query:

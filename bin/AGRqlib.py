@@ -8,22 +8,24 @@ qSubmittedAlleleIds = '''
     AND aa._mgitype_key = 11
     AND aa._logicaldb_key = 1
     AND aa.preferred = 1
-    AND a._transmission_key != 3982953 /* Cell line */
-    AND a._allele_type_key != 847130 /* QTL */
-    AND a._allele_status_key in (847114, 3983021) /* approved, autoload */
-    AND a.iswildtype = 0
+    AND a._transmission_key != 3982953 /* not Cell line */
+    AND a._allele_type_key != 847130   /* not QTL */
+    AND a._allele_status_key in (847114, 3983021) /* status= approved or autoload */
+    AND a.iswildtype = 0               /* not wildtype */
     '''
 
+# basic allele info
 qAlleles = '''
     SELECT
+      a._allele_key,
       aa.accid as "alleleId",
       a.symbol,
       a.name,
       t.term as "alleleType",
-      n.note,
+      n.note as "molecularNote",
       ma.accid as "markerId",
-      d.symbol as "drivenBy",
-      mc.directterms as "markerType"
+      mc.directterms as "markerType",
+      d.symbol as "drivenBy"
     FROM
       ALL_Allele a
         LEFT JOIN MGI_Note n
@@ -38,10 +40,10 @@ qAlleles = '''
       VOC_Term t,
       ACC_Accession ma,
       MRK_MCV_Cache mc
-    WHERE a._transmission_key != 3982953 /* Cell line */
-    AND a._allele_type_key != 847130 /* QTL */
+    WHERE a._transmission_key != 3982953 /* not Cell line */
+    AND a._allele_type_key != 847130 /* not QTL */
     AND a._allele_status_key in (847114, 3983021) /* approved, autoload */
-    AND a.iswildtype = 0
+    AND a.iswildtype = 0        /* not wild type */
     AND a._allele_key = aa._object_key
     AND aa._mgitype_key = 11
     AND aa._logicaldb_key = 1
@@ -54,6 +56,19 @@ qAlleles = '''
     AND a._marker_key = mc._marker_key
     AND mc.qualifier = 'D'
    '''
+#
+qExpressors = '''
+    SELECT distinct _object_key_1 as _allele_key
+    FROM MGI_Relationship
+    WHERE _category_key = 1004 /* expresses component */
+    '''
+
+#
+qAlleleSynonyms = '''
+    SELECT _object_key as _allele_key, synonym
+    FROM MGI_Synonym
+    WHERE _synonymtype_key = 1016 /* allele synonyms */
+    '''
 
 # Return genotypes submitted to the alliance
 qSubmittedGenotypes = '''
