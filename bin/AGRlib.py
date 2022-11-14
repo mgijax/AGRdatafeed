@@ -13,12 +13,6 @@ import subprocess
 import db
 
 #----------------------------------
-dataProviders = {
-    "Entrez Gene": "NCBI_Gene",
-    "Ensembl Gene Model": "ENSEMBL"
-}
-
-#----------------------------------
 # See: http://henry.precheur.org/projects/rfc3339 
 from rfc3339 import rfc3339
 date_re = re.compile(r'(\d\d\d\d)-(\d\d)-(\d\d)')
@@ -93,7 +87,7 @@ def buildMetaObject():
     #   of the MGI DataSource obj
     # For example, "Mouse Genome Informatics [MGI 6.07 2017-01-24]"
     release = None
-    r = sql('select * from mgi_dbinfo')[0]
+    r = sql('\nselect * from mgi_dbinfo\n')[0]
     release = r['public_version'] + " " + r['lastdump_date'].split()[0]
     return {
     "dataProvider" : buildMgiDataProviderObject(),

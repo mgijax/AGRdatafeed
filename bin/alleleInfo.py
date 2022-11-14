@@ -22,7 +22,7 @@ import os
 import argparse
 
 #
-from AGRlib import stripNulls, buildMetaObject, makeOneOfConstraint, sql, dataProviders
+from AGRlib import stripNulls, buildMetaObject, makeOneOfConstraint, sql
 from AGRqlib import qAlleles, qAlleleSynonyms, qExpressors
 
 #-----------------------------------

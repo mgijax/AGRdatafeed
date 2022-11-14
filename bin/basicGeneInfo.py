@@ -37,28 +37,53 @@
 #
 import sys
 import argparse
-import urllib.request, urllib.parse, urllib.error
 import json
 import heapq
 import itertools
 import re
 import os
-from AGRlib import stripNulls, buildMetaObject, doQuery, makeOneOfConstraint, dataProviders
+from AGRlib import stripNulls, buildMetaObject, sql, makeOneOfConstraint
+from AGRqlib import qMcvTerms, qGenes, qGeneHasPhenotype, qGeneHasImpc, qGeneSynonyms, qGeneHasExpression, qGeneHasExpressionImage, qGeneLocations, qGeneProteinIds, qGeneXrefs, qGeneSecondaryIds
+
+#-----------------------------------
+MCV2SO_AUX = {
+    #"complex/cluster/region"
+    6238175 : "SO:0000110",
+    #"cytogenetic marker"
+    6238176 : "SO:0000110",
+    #"BAC/YAC end"
+    6238177 : "SO:0000110",
+    #"other genome feature"
+    6238178 : "SO:0000110",
+    #"DNA segment"
+    6238179 : "SO:0000110",
+    #"unclassified gene"
+    6238184 : "SO:0000704",
+    #"other feature type"
+    6238185 : "SO:0000110",
+    #"unclassified non-coding RNA gene"
+    6238186 : "SO:0000704",
+    #"unclassified cytogenetic marker"
+    7222413 : "SO:0000110",
+    #"unclassified other genome feature"
+    7648969 : "SO:0000110",
+    #"mutation defined region"
+    11928467 : "SO:0000110",
+}
+
+#----------------------------------
+XREF_DBS = {
+    "Entrez Gene": "NCBI_Gene",
+    "Ensembl Gene Model": "ENSEMBL"
+}
 
 #-----------------------------------
 
-MOUSEMINE     = os.environ["MOUSEMINEURL"]
 taxon         = os.environ["TAXONID"]
 GLOBALTAXONID = os.environ["GLOBALTAXONID"]
 MYGENEURL     = os.environ["MYGENEURL"]
 SAMPLEIDS     = os.environ["SAMPLEIDS"].split()
 MGD_OLD_PREFIX= os.environ["MGD_OLD_PREFIX"]
-
-# In MouseMine, synonyms and secondary ids are lumped together as "synonyms". 
-# This function distinguishes a synonym value as being either a secondary id or not.
-#
-def isSecondaryId(identifier):
-        return identifier.startswith("MGI:") or identifier.startswith("MGD-")
 
 # For AGR, old style MGD ids must be given a distinct global prefix (we're using 'MGD_old:') and have 
 # a stanza describing that kind of ID in the resourceDescriptors.yaml file. This routine adds the 
@@ -93,11 +118,11 @@ def formatMyGeneLink(obj):
 def formatXrefs(obj):
     xrefs = set()
     for x in obj.get("xrefs",[]):
-      dp = dataProviders.get(x["crossReferences.source.name"], None)
+      dp = XREF_DBS.get(x["ldbName"], None)
       if dp:
-        xrefs.add((dp, x["crossReferences.identifier"]))
+        xrefs.add((dp, x["accid"]))
     for x in obj.get('proteinIds', []):
-        p = x.get('proteins.uniprotAccession','')
+        p = x.get('proteinId','')
         if p:
             xrefs.add(("UniProtKB", p))
     pid = obj.get('pantherId', [None])[0]
@@ -105,7 +130,8 @@ def formatXrefs(obj):
       xrefs.add(('PANTHER', pid['homologues.crossReferences.identifier']))
     xrefs = list(xrefs)
     xrefs.sort()
-    # new xref format for 1.0.0.0. Includes 2 parts: the id, and a list of page-tags (see resourceDescriptors.yaml)
+    # new xref format for 1.0.0.0. Includes 2 parts: the id, and a list of 
+    # page-tags (see resourceDescriptors.yaml)
     xrs = [{"id": x[0]+":"+x[1]} for x in xrefs]
     # add xrefs to MGI pages for this gene
     pgs = ["gene","gene/references"]
@@ -117,7 +143,7 @@ def formatXrefs(obj):
         pgs.append('gene/phenotype')
     if obj.get('hasImpc', False):
         pgs.append('gene/phenotypes_impc')
-    xrs.append({"id": obj["primaryIdentifier"], "pages":pgs })
+    xrs.append({"id": obj["markerId"], "pages":pgs })
     # add xref to MyGene page (if applicable)
     mgl = formatMyGeneLink(obj)
     if mgl: xrs.append(mgl)
@@ -125,58 +151,57 @@ def formatXrefs(obj):
     return xrs
 
 
-# Convert strand value as stored in MouseMine (+1/-1/0) to the AGR standard (+/-/.)
-#
-def convertStrand(s):
-    return "+" if s in ["+1","1"] else "-" if s == "-1" else "."
-
 # Format the genome location for the obj. The agr standard is to allow multiple
 # locations per object, but we will only have one. Even so, we have to return a list.
 # 
-def formatGenomeLocation(chrom, loc):
-    if loc:
+def formatGenomeLocation(obj):
+
+    loc = obj["location"][0]
+    if loc["genomicchromosome"]:
         return [{
-            "assembly"          : loc['chromosomeLocation.assembly'],
-            "chromosome"        : chrom,
-            "startPosition"     : int(loc['chromosomeLocation.start']),
-            "endPosition"       : int(loc['chromosomeLocation.end']),
-            "strand"            : convertStrand(loc['chromosomeLocation.strand'])
+            "assembly"          : loc['assembly'],
+            "chromosome"        : loc["genomicchromosome"],
+            "startPosition"     : int(loc['startcoordinate']),
+            "endPosition"       : int(loc['endcoordinate']),
+            "strand"            : loc['strand']
         }]
-    #elif obj.chromosome and obj.chromosome.primaryIdentifier != "UN":
     else:
-        if chrom and chrom != 'UN':
+        if loc["chromosome"] and loc["chromosome"] != 'UN':
           return [{
             "assembly"          : '',
-            "chromosome"        : chrom
+            "chromosome"        : loc["chromosome"]
         }]
 
 def formatDescription (obj) :
     d = obj["description"]
     if not d:
       return None
-    i = d.find("PHENOTYPE")
-    if i == -1:
-      return None
-    else:
-      return d[i:]
+    return "PHENOTYPE: %s [provided by MGI curators]" % d
 
 def getJsonObj(obj):
       #try:
-          synonyms = [ r['synonyms.value'] for r in obj.get('synonyms',[]) ]
+          synonyms = []
+          if 'synonyms' in obj:
+              synonyms = [ r['synonym'] for r in obj['synonyms'] ]
+          #
+          secondaryIds = []
+          if 'secondaryIds' in obj:
+              secondaryIds = [ formatSecondary(r['accid']) for r in obj['secondaryIds'] ]
+          #
           basicGeneticEntity = stripNulls({
-            "primaryId"         : obj["primaryIdentifier"],
+            "primaryId"         : obj["markerId"],
             "taxonId"           : GLOBALTAXONID,
-            "secondaryIds"      : [ formatSecondary(s) for s in synonyms if isSecondaryId(s) ],
-            "synonyms"          : [ s for s in synonyms if not isSecondaryId(s) and s != obj["symbol"] and s != obj["name"] ],
+            "secondaryIds"      : secondaryIds,
+            "synonyms"          : [ s for s in synonyms if s != obj["symbol"] and s != obj["name"] ],
             "crossReferences"   : formatXrefs(obj),
-            "genomeLocations"   : formatGenomeLocation(obj.get('chromosome.primaryIdentifier', None), obj.get('location', [None])[0]),
+            "genomeLocations"   : formatGenomeLocation(obj),
           })
           return stripNulls({
             "basicGeneticEntity": basicGeneticEntity,
             "symbol"            : obj["symbol"],
             "name"              : obj["name"],
             "geneSynopsis"      : formatDescription(obj),
-            "soTermId"          : obj["sequenceOntologyTerm.identifier"],
+            "soTermId"          : obj["soTermId"],
           })
       #except:
           #sys.stderr.write('ERROR in getJsonObj. obj=' + str(obj) + '\n')
@@ -206,39 +231,49 @@ def parseCmdLine():
 #
 def main(args):
     ##
-    qmods = {
-      'extraConstraint' : makeOneOfConstraint('Gene.primaryIdentifier', args.identifiers),
-    }
-    ##
     qs = [
-        ('gene', mouseGenes),
-        ('synonyms', mouseSynonyms),
-        ('expressed', mouseExpressedGenes),
-        ('expressedImages', mouseExpressedGenesWithImages),
-        ('location', mouseLocations),
-        ('proteinIds', mouseProteinIds),
-        ('xrefs', mouseXrefs),
-        ('pantherId', mousePantherIds),
-        ('myGeneLink', mouseMyGeneLinks),
+        ('gene',            qGenes),
+        ('synonyms',        qGeneSynonyms),
+        ('secondaryIds',    qGeneSecondaryIds),
+        ('expressed',       qGeneHasExpression),
+        ('expressedImages', qGeneHasExpressionImage),
+        ('location',        qGeneLocations),
+        ('proteinIds',      qGeneProteinIds),
+        ('xrefs',           qGeneXrefs),
+        #('pantherId',       mousePantherIds),
     ]
 
+    # set of markers with phenotype annotations
     hasPheno = set()
-    for r in doQuery(mouseHasPheno, MOUSEMINE):
-        hasPheno.add(r['primaryIdentifier'])
+    for r in sql(qGeneHasPhenotype):
+        hasPheno.add(r['_marker_key'])
 
+    # set of markers with alleles in the IMPC collection
     hasImpc = set()
-    for r in doQuery(mouseHasImpc, MOUSEMINE):
-        hasImpc.add(r['primaryIdentifier'])
+    for r in sql(qGeneHasImpc):
+        hasImpc.add(r['_marker_key'])
+
+    # Mapping from MCV term key to SO id.
+    # Initialize from the hard coded mappings
+    # then load what's in the db (which is incomplete).
+    mcv2so = MCV2SO_AUX.copy()
+    so_re = re.compile(r'SO:[0-9]+')
+    for r in sql(qMcvTerms):
+        m = so_re.search(r['note'])
+        if m:
+            mcv2so[r['_term_key']] = m.group(0)
 
     id2gene = {}
     for label, q in qs:
         if label == 'gene':
-            for r in doQuery (q % qmods, MOUSEMINE):
-                r['mgiid'] = r['primaryIdentifier']
-                id2gene[r['primaryIdentifier']] = r
+            for r in sql(q):
+                r = dict(r)
+                r['soTermId'] = mcv2so[r['_mcv_term_key']]
+                id2gene[r['_marker_key']] = r
         else:
-            for r in doQuery (q % qmods, MOUSEMINE):
-                obj = id2gene.get(r['primaryIdentifier'], None)
+            for r in sql(q):
+                r = dict(r)
+                obj = id2gene.get(r['_marker_key'], None)
                 if obj:
                     obj.setdefault(label,[]).append(r)
     print('{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(), indent=2))
@@ -246,132 +281,11 @@ def main(args):
     for i in id2gene:
         obj = id2gene[i]
         if not first: print(',', end='')
-        obj["hasPheno"] = obj["primaryIdentifier"] in hasPheno
-        obj["hasImpc"] = obj["primaryIdentifier"] in hasImpc
+        obj["hasPheno"] = obj["_marker_key"] in hasPheno
+        obj["hasImpc"] = obj["_marker_key"] in hasImpc
         print(json.dumps(getJsonObj(obj), indent=2))
         first = False
     print(']\n}')
-
-mouseGenes = '''
-    <query
-      name="BGI_mouseGenes"
-      model="genomic"
-      view="
-        Gene.primaryIdentifier
-        Gene.symbol
-        Gene.name
-        Gene.description
-        Gene.sequenceOntologyTerm.identifier
-        Gene.chromosome.primaryIdentifier
-        "
-      sortOrder="Gene.primaryIdentifier asc"
-      >
-      %(extraConstraint)s
-      <constraint path="Gene.organism.taxonId" op="=" value="10090"/>
-      <constraint path="Gene.dataSets.name" op="=" value="Mouse Gene Catalog from MGI"/>
-      <constraint path="Gene.sequenceOntologyTerm.identifier" op="!=" value="SO:0000902"/>
-    </query>
-    '''
-
-mouseSynonyms = '''
-    <query
-      name="BGI_mouseSynonyms"
-      model="genomic"
-      view="
-        Gene.primaryIdentifier
-        Gene.synonyms.value
-        "
-      sortOrder="Gene.primaryIdentifier asc Gene.synonyms.value asc"
-      >
-      %(extraConstraint)s
-      <constraint path="Gene.organism.taxonId" op="=" value="10090"/>
-      <constraint path="Gene.dataSets.name" op="=" value="Mouse Gene Catalog from MGI"/>
-    </query>
-    '''
-
-mouseLocations = '''
-    <query
-      name="BGI_mouseLocations"
-      model="genomic"
-      view="
-        Gene.primaryIdentifier
-        Gene.chromosomeLocation.locatedOn.primaryIdentifier
-        Gene.chromosomeLocation.start
-        Gene.chromosomeLocation.end Gene.chromosomeLocation.strand
-        Gene.chromosomeLocation.assembly
-        "
-      sortOrder="Gene.primaryIdentifier asc"
-      >
-      %(extraConstraint)s
-      <constraint path="Gene.organism.taxonId" op="=" value="10090"/>
-      <constraint path="Gene.dataSets.name" op="=" value="Mouse Gene Catalog from MGI"/>
-    </query>
-    '''
-
-mouseProteinIds = '''
-    <query
-      name="BGI_mouseProteinIds"
-      model="genomic"
-      view="
-        Gene.primaryIdentifier
-        Gene.proteins.uniprotAccession
-        "
-      sortOrder="Gene.primaryIdentifier asc Gene.proteins.uniprotAccession asc"
-      >
-      %(extraConstraint)s
-      <constraint path="Gene.organism.taxonId" op="=" value="10090"/>
-      <constraint path="Gene.dataSets.name" op="=" value="Mouse Gene Catalog from MGI"/>
-    </query>
-    '''
-
-mouseExpressedGenes = '''
-    <query
-      name="BGI_mouseExpressedGenes"
-      model="genomic"
-      view="
-        Gene.primaryIdentifier
-        "
-      sortOrder="Gene.primaryIdentifier asc"
-      >
-      %(extraConstraint)s
-      <constraint path="Gene.organism.taxonId" op="=" value="10090"/>
-      <constraint path="Gene.dataSets.name" op="=" value="Mouse Gene Catalog from MGI"/>
-      <constraint path="Gene.expression" op="IS NOT NULL"/>
-    </query>
-    '''
-
-mouseExpressedGenesWithImages = '''
-    <query
-      name="BGI_mouseExpressedGenesWithImages"
-      model="genomic"
-      view="
-        Gene.primaryIdentifier
-        "
-      sortOrder="Gene.primaryIdentifier asc"
-      >
-      %(extraConstraint)s
-      <constraint path="Gene.organism.taxonId" op="=" value="10090"/>
-      <constraint path="Gene.dataSets.name" op="=" value="Mouse Gene Catalog from MGI"/>
-      <constraint path="Gene.expression.image" op="IS NOT NULL"/>
-    </query>
-    '''
-
-mouseXrefs = '''
-    <query
-      name="BGI_mouseXrefs"
-      model="genomic"
-      view="
-        Gene.primaryIdentifier
-        Gene.crossReferences.source.name
-        Gene.crossReferences.identifier
-        "
-      sortOrder="Gene.primaryIdentifier asc"
-      >
-      %(extraConstraint)s
-      <constraint path="Gene.organism.taxonId" op="=" value="10090"/>
-      <constraint path="Gene.dataSets.name" op="=" value="Mouse Gene Catalog from MGI"/>
-    </query>
-    '''
 
 mousePantherIds = '''
     <query
@@ -392,42 +306,4 @@ mousePantherIds = '''
     </query>
     '''
 
-mouseMyGeneLinks = '''
-    <query
-      name="BGI_mouseMyGeneLinks"
-      model="genomic"
-      view="
-        Gene.primaryIdentifier
-        Gene.homologues.homologue.primaryIdentifier
-        Gene.homologues.homologue.symbol
-        Gene.homologues.homologue.crossReferences.identifier
-        "
-      sortOrder="Gene.primaryIdentifier asc"
-      >
-      %(extraConstraint)s
-      <constraint path="Gene.organism.taxonId" op="=" value="10090"/>
-      <constraint path="Gene.homologues.dataSets.name" op="=" value="Mouse/Human Orthologies from MGI"/>
-      <constraint path="Gene.homologues.homologue.crossReferences.source.name" code="E" op="=" value="MyGene"/>
-      <constraint path="Gene.dataSets.name" op="=" value="Mouse Gene Catalog from MGI"/>
-    </query>
-    '''
-
-mouseHasPheno = '''
-    <query 
-        model="genomic"
-        view="Gene.primaryIdentifier"
-        >
-        <constraint path="Gene.ontologyAnnotations.ontologyTerm" type="MPTerm"/>
-        <constraint path="Gene.ontologyAnnotations.ontologyTerm.identifier" op="IS NOT NULL"/>
-        </query>
-    '''
-
-mouseHasImpc = '''
-    <query
-        model="genomic"
-        view="Gene.primaryIdentifier"
-        >
-        <constraint path="Gene.alleles.projectCollection" op="=" value="IMPC"/>
-        </query>
-        '''
 main(parseCmdLine())

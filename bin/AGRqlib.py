@@ -1,6 +1,124 @@
 # Collect the SQL in one place so that queries can be shared
 
-# query for MGI ids of alleles being submitted to the Alliance. 
+qMcvTerms = '''
+    SELECT _term_key, term, note
+    FROM VOC_Term
+    WHERE _vocab_key = 79 /* MCV */
+    '''
+
+# genes submitted to Alliance
+qGenes = '''
+    SELECT 
+        m._marker_key, 
+        a.accid as "markerId",
+        m.symbol,
+        m.name,
+        n.note as description,
+        m.chromosome,
+        va._term_key as _mcv_term_key
+    FROM 
+        MRK_Marker m
+        LEFT JOIN MRK_Notes n
+            ON n._marker_key = m._marker_key
+            AND m._organism_key = 1,
+        ACC_Accession a,
+        VOC_Annot va
+    WHERE m._marker_status_key = 1  /* official */
+    AND m._marker_type_key in (1,7) /* genes and pseudogenes */
+    AND m._marker_key = a._object_key
+    AND a._mgitype_key = 2
+    AND a._logicaldb_key = 1
+    AND a.preferred = 1
+    AND m._marker_key = va._object_key
+    AND va._annottype_key = 1011 /* Marker-MCV */
+    '''
+
+#
+qGeneSynonyms = '''
+    SELECT _object_key as _marker_key, synonym
+    FROM MGI_Synonym
+    WHERE _synonymtype_key = 1004 /* exact marker synonyms */
+    '''
+
+#
+qGeneSecondaryIds = '''
+    SELECT a._object_key as _marker_key, a.accid
+    FROM ACC_Accession a
+    WHERE a._mgitype_key = 2
+    AND a._logicaldb_key = 1
+    AND a.preferred = 0
+    '''
+
+#
+qGeneLocations = '''
+    SELECT
+        lc._marker_key,
+        lc.chromosome,
+        lc.genomicchromosome,
+        lc.startcoordinate,
+        lc.endcoordinate,
+        lc.strand,
+        lc.version as assembly
+    FROM MRK_Location_Cache lc
+    WHERE lc._organism_key = 1
+    '''
+
+#
+qGeneXrefs = '''
+    SELECT
+      a._object_key as _marker_key,
+      a.accid,
+      ldb._logicaldb_key,
+      CASE WHEN ldb._logicaldb_key = 9 THEN 'GenBank' ELSE ldb.name END AS "ldbName"
+    FROM 
+      MRK_Marker m,
+      ACC_Accession a,
+      ACC_LogicalDB ldb
+    WHERE m._marker_status_key = 1 /* official */
+    AND m._marker_type_key in (1,7) /* genes, pseudogenes */
+    AND m._organism_key = 1
+    AND m._marker_key = a._object_key
+    AND a._mgitype_key = 2
+    AND a._logicaldb_key not in (1,171,146,19,212) /* exclude MGI logical dbs */
+    AND a._logicaldb_key = ldb._logicaldb_key
+    '''
+
+#
+qGeneProteinIds = '''
+    SELECT _object_key as _marker_key, accid as "proteinId"
+    FROM acc_accession 
+    WHERE _mgitype_key = 2
+    AND _logicaldb_key in (13,41)
+    '''
+
+# genes with phenotype annots
+qGeneHasPhenotype = '''
+    SELECT distinct _object_key as _marker_key
+    FROM VOC_Annot
+    WHERE _annottype_key = 1015 /* MP-Gene */
+    '''
+
+# genes for alleles in the IMPC collection
+qGeneHasImpc = '''
+    SELECT distinct _marker_key
+    FROM ALL_Allele
+    WHERE _collection_key = 24755824 /* IMPC */
+    '''
+
+# genes that have expression data
+qGeneHasExpression = '''
+    SELECT distinct _marker_key
+    FROM GXD_Expression
+    '''
+
+# genes that have expression data
+qGeneHasExpressionImage = '''
+    SELECT distinct _marker_key
+    FROM GXD_Expression
+    WHERE hasimage = 1
+    '''
+
+# MGI ids of alleles being submitted to the Alliance. 
 qSubmittedAlleleIds = '''
     SELECT aa.accid as mgiid
     FROM ALL_Allele a, ACC_Accession aa
