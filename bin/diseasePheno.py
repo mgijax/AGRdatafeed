@@ -27,6 +27,44 @@ import json
 from itertools import chain, groupby
 from AGRlib import stripNulls, buildMgiDataProviderObject, buildMetaObject, getTimeStamp, makeOneOfConstraint, doQuery, makePubRef
 import heapq
+from AGRqlib import tAnnots, tAnnotEvidence, tAnnotBaseAnnots
+
+mpGeneCfg = {
+    "_annottype_key" : 1015, # MP-Gene
+    "subj_tblname"   : "MRK_Marker",
+    "subj_keycol"    : "_marker_key",
+    "_mgitype_key"   : 2,
+    "voc_ldbkey"    : 34,
+    }
+mpAlleleCfg = {
+    "_annottype_key" : 1028, # MP-Allele
+    "subj_tblname"   : "ALL_Allele",
+    "subj_keycol"    : "_allele_key",
+    "_mgitype_key"   : 11,
+    "voc_ldbkey"    : 34,
+    }
+doGeneCfg = {
+    "_annottype_key" : 1023, # DO-Gene
+    "subj_tblname"   : "MRK_Marker",
+    "subj_keycol"    : "_marker_key",
+    "_mgitype_key"   : 2,
+    "voc_ldbkey"    : 191,
+    }
+doAlleleCfg = {
+    "_annottype_key" : 1029, # DO-Allele
+    "subj_tblname"   : "ALL_Allele",
+    "subj_keycol"    : "_allele_key",
+    "_mgitype_key"   : 11,
+    "voc_ldbkey"    : 191,
+    }
+
+ALL = [mpGeneCfg, mpAlleleCfg, doGeneCfg, doAlleleCfg]
+
+for cfg in ALL:
+    for tmplt in [tAnnots, tAnnotEvidence, tAnnotBaseAnnots]:
+        q = tmplt % cfg
+        print (q)
+sys.exit(0)
 
 #
 code2eco = {

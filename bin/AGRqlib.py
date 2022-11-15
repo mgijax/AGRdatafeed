@@ -1,5 +1,14 @@
-# Collect the SQL in one place so that queries can be shared
+# Collect all the SQL in one place so that queries can be shared
+# Naming convention:
+# - fully formed queries start with "q"
+# - templates (things with '%(name)s' substitutions) start with "t"
 
+
+#--------------------------------------------------------------------------
+# GENES
+#--------------------------------------------------------------------------
+
+#
 qMcvTerms = '''
     SELECT _term_key, term, note
     FROM VOC_Term
@@ -118,6 +127,10 @@ qGeneHasExpressionImage = '''
     WHERE hasimage = 1
     '''
 
+#--------------------------------------------------------------------------
+# ALLELES
+#--------------------------------------------------------------------------
+
 # MGI ids of alleles being submitted to the Alliance. 
 qSubmittedAlleleIds = '''
     SELECT aa.accid as mgiid
@@ -188,6 +201,10 @@ qAlleleSynonyms = '''
     WHERE _synonymtype_key = 1016 /* allele synonyms */
     '''
 
+#--------------------------------------------------------------------------
+# GENOTYPES
+#--------------------------------------------------------------------------
+
 # Return genotypes submitted to the alliance
 qSubmittedGenotypes = '''
     SELECT
@@ -244,6 +261,10 @@ qGenotypeAllelePair = '''
     AND aa.preferred = 1
     AND ap._pairstate_key = ps._term_key
     '''
+
+#--------------------------------------------------------------------------
+# EXPRESSION
+#--------------------------------------------------------------------------
 
 # Returns all the terms in the EMAPA.
 qEmapaTerms = '''
@@ -305,6 +326,7 @@ qEmapaTermsAndParents = '''
     </query>
   '''
 
+#
 qMutantGenotypes = '''
     SELECT g._genotype_key
     FROM GXD_Genotype g
@@ -318,6 +340,7 @@ qMutantGenotypes = '''
     AND g._genotype_key > 0
     '''
 
+#
 qNonMutantGenotypes = '''
     SELECT g._genotype_key
     FROM GXD_Genotype g
@@ -331,18 +354,21 @@ qNonMutantGenotypes = '''
     /* AND g._genotype_key > 0 */
     '''
 
+#
 qHomozygousGenotypes = '''
     SELECT _genotype_key
     FROM gxd_allelepair
     WHERE _Compound_key = 847167 and _PairState_key = 847138
     '''
 
+#
 qHeterozygousGenotypes = '''
     SELECT _genotype_key
     FROM gxd_allelepair
     WHERE _Compound_key = 847167 and _PairState_key = 847137
     '''
 
+#
 qGxdExpression = '''
     SELECT
       a.accid as "assayId",
@@ -398,3 +424,116 @@ qGxdExpression = '''
     /**/
     ORDER BY a.accid, sa.accid, ex._stage_key
     ''' % (qNonMutantGenotypes,qHeterozygousGenotypes)
+
+#--------------------------------------------------------------------------
+# ANNOTATIONS
+#--------------------------------------------------------------------------
+
+#
+# Params:
+#  _annottype_key, _subj_keycol, subj_tblname, _mgitype_key, voc_ldbkey
+tAnnots = '''
+   SELECT
+     va._annot_key,
+     CASE WHEN qt.term is null THEN '' ELSE qt.term END as qualifier,
+     aa.accid as "subjectId",
+     subj.%(subj_keycol)s,
+     subj.symbol,
+     subj.name,
+     vt.term,
+     vta.accid as "termId"
+   FROM
+     VOC_Annot va,
+     VOC_Term qt,
+     %(subj_tblname)s subj, /* MRK_Marker or ALL_Allele */
+     ACC_Accession aa,
+     VOC_Term vt,
+     ACC_Accession vta
+   WHERE va._annottype_key = %(_annottype_key)d /* 1015=MP/Marker, 1023=DO/Marker, 1029=DO/Allele, 1028=MP/Allele */
+   AND va._qualifier_key = qt._term_key
+   AND va._object_key = subj.%(subj_keycol)s /* _marker_key or _allele_key */
+   AND va._object_key = aa._object_key
+   AND aa._mgitype_key = %(_mgitype_key)d /* 2=marker, 11=allele */
+   AND aa._logicaldb_key = 1
+   AND aa.preferred = 1
+   AND va._term_key = vt._term_key
+   AND vt._term_key = vta._object_key
+   AND vta._mgitype_key = 13
+   AND vta._logicaldb_key = %(voc_ldbkey)d /* 34=MP, 191=DO */
+   AND vta.preferred = 1
+   '''
+# Params:
+#  _annottype_key
+tAnnotEvidence = '''
+    SELECT
+      va._annot_key,
+      ve._annotevidence_key,
+      et.term as evidence,
+      br._refs_key,
+      ra.accid as "refMgiId",
+      raj.accid as "refJnum",
+      rap.accid as "refPmid",
+      ve.modification_date as "annotationDate"
+    FROM
+      VOC_Annot va,
+      VOC_Evidence ve,
+      VOC_Term et,
+      BIB_Refs br,
+      ACC_Accession ra,
+      ACC_Accession raj
+         LEFT JOIN ACC_Accession rap
+         ON raj._object_key = rap._object_key
+         AND rap._mgitype_key = 1
+         AND rap._logicaldb_key = 29 /* pubmed */
+         AND rap.preferred = 1
+    WHERE va._annottype_key = %(_annottype_key)d
+    AND va._annot_key = ve._annot_key
+    AND ve._evidenceterm_key = et._term_key
+    AND ve._refs_key = br._refs_key
+    /* ref's MGI id */
+    AND ve._refs_key = ra._object_key
+    AND ra._mgitype_key = 1
+    AND ra._logicaldb_key = 1
+    AND ra.prefixpart = 'MGI:'
+    AND ra.preferred = 1
+    /* ref's J# id */
+    AND ve._refs_key = raj._object_key
+    AND raj._mgitype_key = 1
+    AND raj._logicaldb_key = 1
+    AND raj.prefixpart = 'J:'
+    AND raj.preferred = 1
+    '''
+
+# Params:
+#  _annottype_key
+tAnnotBaseAnnots = '''
+    select distinct
+      va._annot_key,
+      ve._annotevidence_key,
+      ve._refs_key,
+      ba._annot_key,
+      be._annotevidence_key,
+      be._refs_key,
+      be.modification_date,
+      aa.accid
+    from 
+      voc_annot va,
+      voc_evidence ve,
+      voc_evidence_property vep,
+      voc_term vept,
+      voc_annot ba,
+      voc_evidence be,
+      acc_accession aa
+    where va._annot_key = ve._annot_key
+    and ve._annotevidence_key = vep._annotevidence_key 
+    and vep._propertyterm_key = vept._term_key
+    and vept.term = '_SourceAnnot_key'
+    and va._annottype_key = %(_annottype_key)d /* 1015, 1023, 1028, 1029 */
+    and cast(vep.value as integer) = ba._annot_key
+    and ba._annot_key = be._annot_key
+    and ba._object_key = aa._object_key
+    and aa._mgitype_key = 12
+    and aa._logicaldb_key = 1
+    and aa.preferred = 1
+    order by va._annot_key
+    '''
