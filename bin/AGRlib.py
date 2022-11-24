@@ -43,40 +43,6 @@ def buildMgiDataProviderObject () :
         "type" : "curated"
     }
 #----------------------------------
-#
-def doInterMineQuery(q, url): 
-    # sys.stderr.write('Intermine query=' + q + '\n')
-    fmt = 'tab'
-    url = '%s/query/results?format=%s&query=%s' % (url,fmt,urllib.parse.quote_plus(q))
-    fd = urllib.request.urlopen(url)
-    for line in fd: 
-        line = line.decode('utf-8')
-        toks = line[:-1].split('\t')
-        yield toks
-    fd.close()
-
-#----------------------------------
-# Returns the list of view paths from the given query.
-VIEW_re=re.compile(r'view="([^"]*)"')
-def getView (q, stripRoot=True):
-    view = None
-    m = VIEW_re.search(q)
-    if m:
-      view = m.group(1).strip().split()
-      if stripRoot:
-        view = ['.'.join(v.split('.')[1:]) for v in view]
-    return view
-
-#----------------------------------
-# 
-def doQuery(q, url):
-  sys.stderr.write("MouseMine query:\n" + q + "\n")
-  view = getView(q)
-  def makeObject (row) :
-    return dict(list(zip(view, [f if f != '""' else None for f in row])))
-  return map(makeObject, doInterMineQuery(q, url))
-
-#----------------------------------
 # Constructs and returns the metaData (header) for the dump file.
 #
 def buildMetaObject():
@@ -149,7 +115,7 @@ def getTimeStamp(s = None):
 
 #---------------------------------
 def sql (query) :
-    sys.stderr.write("\nSQL query: " + query)
+    sys.stderr.write("\nSQL query: %s\n" % query)
     return db.sql(query)
 
 #-----------------------------------

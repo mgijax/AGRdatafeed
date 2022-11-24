@@ -208,16 +208,20 @@ qAlleleSynonyms = '''
 # Return genotypes submitted to the alliance
 qSubmittedGenotypes = '''
     SELECT
+      g._genotype_key,
       a.accid as "genotypeId",
       n.note as alleles,
       s.strain,
       sa.accid as "backgroundId"
     FROM 
-      GXD_Genotype g,
+      GXD_Genotype g
+      LEFT JOIN MGI_Note n
+        ON g._genotype_key = n._object_key
+        AND n._notetype_key = 1016 /* Combo type 1 */
+      LEFT JOIN PRB_Strain s
+        ON g._strain_key = s._strain_key,
       ACC_Accession a,
-      MGI_Note n,
-      ACC_Accession sa,
-      PRB_Strain s
+      ACC_Accession sa
     WHERE exists (
       /* the genotyeps has an annotation */
       SELECT _annot_key
@@ -229,13 +233,10 @@ qSubmittedGenotypes = '''
     AND a._mgitype_key = 12
     AND a._logicaldb_key = 1
     AND a.preferred = 1
-    AND g._genotype_key = n._object_key
-    AND n._notetype_key = 1016 /* Combo type 1 */
     AND g._strain_key = sa._object_key
     AND sa._mgitype_key = 10 /* strain */
     AND sa._logicaldb_key = 1
     AND sa.preferred = 1
-    AND g._strain_key = s._strain_key
     '''
 
 # Return the first allele and zygosity from each allelepair record.
@@ -431,15 +432,19 @@ qGxdExpression = '''
 
 #
 # Params:
-#  _annottype_key, _subj_keycol, subj_tblname, _mgitype_key, voc_ldbkey
+#  _annottype_key : 1015=MP/Marker, 1023=DO/Marker, 1029=DO/Allele, 1028=MP/Allele, 1002=MP/Genotype, 1020=DO/Genotype
+#  subj_keycol : _marker_key , _allele_key , _genotype_key
+#  subj_labelcol : symbol . Genotypes require special handling to generate their labels. For this query, use '_genotype_key'
+#  subj_tblname : MRK_Marker , ALL_Allele , GXD_Genotype
+#  _mgitype_key : 2=marker, 11=allele , 12=genotype
+#  voc_ldbkey : 34=MP, 191=DO
 tAnnots = '''
    SELECT
      va._annot_key,
      CASE WHEN qt.term is null THEN '' ELSE qt.term END as qualifier,
      aa.accid as "subjectId",
-     subj.%(subj_keycol)s,
-     subj.symbol,
-     subj.name,
+     subj.%(subj_keycol)s as "subjectKey",
+     subj.%(subj_labelcol)s as "subjectLabel",
      vt.term,
      vta.accid as "termId"
    FROM
@@ -449,26 +454,27 @@ tAnnots = '''
      ACC_Accession aa,
      VOC_Term vt,
      ACC_Accession vta
-   WHERE va._annottype_key = %(_annottype_key)d /* 1015=MP/Marker, 1023=DO/Marker, 1029=DO/Allele, 1028=MP/Allele */
+   WHERE va._annottype_key = %(_annottype_key)d
    AND va._qualifier_key = qt._term_key
-   AND va._object_key = subj.%(subj_keycol)s /* _marker_key or _allele_key */
+   AND va._object_key = subj.%(subj_keycol)s
    AND va._object_key = aa._object_key
-   AND aa._mgitype_key = %(_mgitype_key)d /* 2=marker, 11=allele */
+   AND aa._mgitype_key = %(_mgitype_key)d
    AND aa._logicaldb_key = 1
    AND aa.preferred = 1
    AND va._term_key = vt._term_key
    AND vt._term_key = vta._object_key
    AND vta._mgitype_key = 13
-   AND vta._logicaldb_key = %(voc_ldbkey)d /* 34=MP, 191=DO */
+   AND vta._logicaldb_key = %(voc_ldbkey)d
    AND vta.preferred = 1
+   ORDER BY va._annot_key
    '''
 # Params:
-#  _annottype_key
+#  _annottype_key: one of 1015, 1023, 1028, 1029
 tAnnotEvidence = '''
     SELECT
       va._annot_key,
       ve._annotevidence_key,
-      et.term as evidence,
+      et.abbreviation as code,
       br._refs_key,
       ra.accid as "refMgiId",
       raj.accid as "refJnum",
@@ -502,20 +508,21 @@ tAnnotEvidence = '''
     AND raj._logicaldb_key = 1
     AND raj.prefixpart = 'J:'
     AND raj.preferred = 1
+    ORDER BY va._annot_key, br._refs_key
     '''
 
 # Params:
-#  _annottype_key
+#  _annottype_key : one of 1015, 1023, 1028, 1029
 tAnnotBaseAnnots = '''
     select distinct
       va._annot_key,
       ve._annotevidence_key,
       ve._refs_key,
-      ba._annot_key,
-      be._annotevidence_key,
-      be._refs_key,
-      be.modification_date,
-      aa.accid
+      ba._annot_key as _baseannot_key,
+      be._annotevidence_key as _baseannotevidence_key,
+      be._refs_key as _baserefs_key,
+      be.modification_date as _basemodification_date,
+      aa.accid as "genotypeId"
     from 
       voc_annot va,
       voc_evidence ve,
@@ -528,12 +535,39 @@ tAnnotBaseAnnots = '''
     and ve._annotevidence_key = vep._annotevidence_key 
     and vep._propertyterm_key = vept._term_key
     and vept.term = '_SourceAnnot_key'
-    and va._annottype_key = %(_annottype_key)d /* 1015, 1023, 1028, 1029 */
+    and va._annottype_key = %(_annottype_key)d
     and cast(vep.value as integer) = ba._annot_key
+    and ba._annottype_key = %(_baseannottype_key)d
     and ba._annot_key = be._annot_key
     and ba._object_key = aa._object_key
     and aa._mgitype_key = 12
     and aa._logicaldb_key = 1
     and aa.preferred = 1
+    and ve._refs_key = be._refs_key
     order by va._annot_key
     '''
+
+# Params:
+#   _annottype_key: one of 1002, 1020
+tGenotypeLabels = '''
+    SELECT
+      g._genotype_key,
+      n.note as alleles,
+      s.strain
+    FROM 
+      GXD_Genotype g
+          LEFT JOIN MGI_Note n
+          ON g._genotype_key = n._object_key
+          AND n._notetype_key = 1016 /* Combo type 1 */
+      
+          LEFT JOIN PRB_Strain s
+          ON g._strain_key = s._strain_key
+    WHERE exists (
+      /* the genotyeps has an annotation */
+      SELECT _annot_key
+      FROM VOC_Annot
+      WHERE _annottype_key = 1020
+      AND _object_key = g._genotype_key
+      )
+    '''
+

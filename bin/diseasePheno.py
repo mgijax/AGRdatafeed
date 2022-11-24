@@ -24,284 +24,212 @@ import sys
 import os
 import argparse
 import json
-from itertools import chain, groupby
-from AGRlib import stripNulls, buildMgiDataProviderObject, buildMetaObject, getTimeStamp, makeOneOfConstraint, doQuery, makePubRef
-import heapq
-from AGRqlib import tAnnots, tAnnotEvidence, tAnnotBaseAnnots
+from itertools import chain
+from AGRlib import stripNulls, buildMgiDataProviderObject, buildMetaObject, getTimeStamp, sql, makePubRef
+from AGRqlib import tAnnots, tAnnotEvidence, tAnnotBaseAnnots, tGenotypeLabels
 
 mpGeneCfg = {
+    "okind" : "MP",
+    "skind" : "gene",
     "_annottype_key" : 1015, # MP-Gene
+    "_baseannottype_key" : 1002, # MP-Genotype
     "subj_tblname"   : "MRK_Marker",
     "subj_keycol"    : "_marker_key",
+    "subj_labelcol"  : "symbol",
     "_mgitype_key"   : 2,
     "voc_ldbkey"    : 34,
     }
 mpAlleleCfg = {
+    "okind" : "MP",
+    "skind" : "allele",
     "_annottype_key" : 1028, # MP-Allele
+    "_baseannottype_key" : 1002, # MP-Genotype
     "subj_tblname"   : "ALL_Allele",
     "subj_keycol"    : "_allele_key",
+    "subj_labelcol"  : "symbol",
     "_mgitype_key"   : 11,
     "voc_ldbkey"    : 34,
     }
+mpGenoCfg = {
+    "okind" : "MP",
+    "skind" : "genotype",
+    "_annottype_key" : 1002, # MP-Genotype
+    "_baseannottype_key" : None,
+    "subj_tblname"   : "GXD_Genotype",
+    "subj_keycol"    : "_genotype_key",
+    "subj_labelcol"  : "_genotype_key", # special handling
+    "_mgitype_key"   : 12, # genotype
+    "voc_ldbkey"    : 34, # MP
+    }
 doGeneCfg = {
+    "okind" : "DO",
+    "skind" : "gene",
     "_annottype_key" : 1023, # DO-Gene
+    "_baseannottype_key" : 1020, # DO-Genotype
     "subj_tblname"   : "MRK_Marker",
     "subj_keycol"    : "_marker_key",
-    "_mgitype_key"   : 2,
-    "voc_ldbkey"    : 191,
+    "subj_labelcol"  : "symbol",
+    "_mgitype_key"   : 2,  # marker
+    "voc_ldbkey"    : 191, # DO
     }
 doAlleleCfg = {
+    "okind" : "DO",
+    "skind" : "allele",
     "_annottype_key" : 1029, # DO-Allele
+    "_baseannottype_key" : 1020, # DO-Genotype
     "subj_tblname"   : "ALL_Allele",
     "subj_keycol"    : "_allele_key",
-    "_mgitype_key"   : 11,
-    "voc_ldbkey"    : 191,
+    "subj_labelcol"  : "symbol",
+    "_mgitype_key"   : 11, # allele
+    "voc_ldbkey"    : 191, # DO
+    }
+doGenoCfg = {
+    "okind" : "DO",
+    "skind" : "genotype",
+    "_annottype_key" : 1020, # DO-Genotype
+    "_baseannottype_key" : None,
+    "subj_tblname"   : "GXD_Genotype",
+    "subj_keycol"    : "_genotype_key",
+    "subj_labelcol"  : "_genotype_key", # special handling
+    "_mgitype_key"   : 12, # genotype
+    "voc_ldbkey"    : 191, # DO
     }
 
-ALL = [mpGeneCfg, mpAlleleCfg, doGeneCfg, doAlleleCfg]
-
-for cfg in ALL:
-    for tmplt in [tAnnots, tAnnotEvidence, tAnnotBaseAnnots]:
-        q = tmplt % cfg
-        print (q)
-sys.exit(0)
+PHENO_CFGS = [mpGeneCfg, mpAlleleCfg, mpGenoCfg]
+DISEASE_CFGS = [doGeneCfg, doAlleleCfg, doGenoCfg]
 
 #
 code2eco = {
   "TAS" : "ECO:0000033"
 }
 
-MOUSEMINE    = os.environ["MOUSEMINEURL"]
-TAXONID         = os.environ["TAXONID"]
-MOUSETAXONID    = os.environ["GLOBALTAXONID"]
+def getAnnotations (cfg) :
+    LIMIT = "" # " limit 10"
+    
+    gk2label = {}
+    if (cfg["skind"] == "genotype") :
+        for r in sql(tGenotypeLabels % cfg):
+            label = "%s [background:] %s" % (r["alleles"],r["strain"])
+            gk2label[r["_genotype_key"]] = label
 
-########
-# Returns an iterator over the disease annotation for sequence features or genotypes, depending
-# on the kind argument. Optionally restrict to a specific set of ids.
-# Args:
-#   service - a connection to MouseMine
-#   okind - kind of annotation ontology term, "DOTerm" or "MPTerm"
-#   skind - kind of annotation subject, "SequenceFeature", "Allele", or "Genotype"
-#   ids - either None, or a list of MGI ids. Annotations will be returned only for objects in this list
-# Returns:
-#   An iterator that will yield annotations. Annotations are objects - use dot notation to access parts,
-#   e.g., a.subject.symbol
-#
-def annotations(url, okind, skind, ids = None):
-    qopts = {
-      'alleleFeatView': "OntologyAnnotation.subject.feature.primaryIdentifier" if skind == "Allele" else "",
-      'xtraConstraint': makeOneOfConstraint("OntologyAnnotation.subject.primaryIdentifier",  ids),
-      'xtraConstraint2': makeOneOfConstraint("OntologyAnnotationEvidence.annotation.subject.primaryIdentifier",  ids),
-      'okind': okind,
-      'skind': skind,
-    }
+    ak2evs = {}
+    for r in sql(tAnnotEvidence % cfg + LIMIT):
+        ak2evs.setdefault(r["_annot_key"],[]).append(dict(r))
+   
+    ak2bas = {}
+    if (cfg["_baseannottype_key"]):
+        for r in sql(tAnnotBaseAnnots % cfg + LIMIT):
+            ak2bas.setdefault(r["_annot_key"],[]).append(dict(r))
 
-    qAnnots = '''<query
-    model="genomic"
-    view="
-        OntologyAnnotation.id
-        OntologyAnnotation.subject.primaryIdentifier
-        OntologyAnnotation.subject.symbol
-        OntologyAnnotation.subject.name
-        OntologyAnnotation.ontologyTerm.identifier
-        OntologyAnnotation.ontologyTerm.name
-        OntologyAnnotation.qualifier
-        %(alleleFeatView)s
-        "
-    sortOrder="OntologyAnnotation.id asc"
-    >
-    <constraint path="OntologyAnnotation.ontologyTerm" type="%(okind)s"/>
-    <constraint path="OntologyAnnotation.subject" type="%(skind)s"/>
-    <constraint path="OntologyAnnotation.subject.organism.taxonId" op="=" value="10090"/>
-    %(xtraConstraint)s
-    </query>
-    ''' % qopts
-
-    qEvidence = '''<query
-    model="genomic"
-    view="
-        OntologyAnnotation.id
-        OntologyAnnotation.evidence.id
-        OntologyAnnotation.evidence.annotationDate
-        OntologyAnnotation.evidence.code.code
-        OntologyAnnotation.evidence.publications.id
-        OntologyAnnotation.evidence.publications.pubMedId
-        OntologyAnnotation.evidence.publications.mgiJnum
-        OntologyAnnotation.evidence.publications.mgiId
-        %(alleleFeatView)s
-        "
-    sortOrder="OntologyAnnotation.id asc OntologyAnnotation.evidence.id asc"
-    >
-    <constraint path="OntologyAnnotation.ontologyTerm" type="%(okind)s"/>
-    <constraint path="OntologyAnnotation.subject" type="%(skind)s"/>
-    <constraint path="OntologyAnnotation.subject.organism.taxonId" op="=" value="10090"/>
-    %(xtraConstraint)s
-    </query>
-    ''' % qopts
-
-    qBaseAnnots = '''<query
-        model="genomic"
-        view="
-            OntologyAnnotationEvidence.id
-            OntologyAnnotationEvidence.publications.id
-            OntologyAnnotationEvidence.annotation.id
-            OntologyAnnotationEvidence.baseAnnotations.subject.primaryIdentifier
-            OntologyAnnotationEvidence.baseAnnotations.evidence.annotationDate
-            OntologyAnnotationEvidence.baseAnnotations.evidence.publications.pubMedId
-            "
-        sortOrder="OntologyAnnotationEvidence.annotation.id asc OntologyAnnotationEvidence.id asc"
-        >
-        <constraint path="OntologyAnnotationEvidence.annotation.ontologyTerm" type="%(okind)s"/>
-        <constraint path="OntologyAnnotationEvidence.annotation.subject" type="%(skind)s"/>
-        <constraint path="OntologyAnnotationEvidence.baseAnnotations.evidence.publications" op="=" loopPath="OntologyAnnotationEvidence.publications"/>
-        %(xtraConstraint2)s
-        </query>
-    ''' % qopts
-
-    qs = [
-      map(lambda x: (x[0], 'annotation', list(x[1])), groupby(doQuery(qAnnots, url), lambda e: e['id'])),
-      map(lambda x: (x[0], 'evidence', list(x[1])), groupby(doQuery(qEvidence, url), lambda e: e['id'])),
-      map(lambda x: (x[0], 'baseAnnots', list(x[1])), groupby(doQuery(qBaseAnnots, url), lambda e: e['annotation.id'])),
-    ]
-    for x in groupby(heapq.merge(*qs), lambda x: x[0]):
-        r = {}
-        for y in x[1]:
-            if y[1] == 'annotation':
-                r.update(y[2][0])
-            elif y[1] == 'evidence':
-                r['evidence'] = y[2]
-            elif y[1] == 'baseAnnots':
-                # Note that these are *all* the base annotations. Each one is associated with a 
-                # specific evidence object. Look for matching ids
-                # the field named 'id' in the base annot record should equal the 'evidence.id'
-                # in the evidence object.
-                r['baseAnnots'] = y[2]
-        rr = applyConversions(r, okind, skind)
+    for r in sql(tAnnots % cfg + LIMIT):
+        r = dict(r)
+        r["evidence"] = ak2evs.get(r["_annot_key"],[])
+        r["baseAnnots"] = ak2bas.get(r["_annot_key"],[])
+        rr = applyConversions(r, cfg["okind"], cfg["skind"])
+        if (cfg["skind"] == "genotype") :
+            rr["subjectLabel"] = gk2label[r["subjectKey"]]
         if rr:
-          for n,e in enumerate(rr["invevidence"]):
-              rr["agrevidence"] = e
-              rr["agrbaseannots"] = rr["invbaseannots"][n]
-              rr2 = formatDafJsonRecord(rr, "disease" if okind == "DOTerm" else "phenotype", skind)
-              if rr2:
-                  yield rr2
-
+            for e in rr["evidence"]:
+                rr2 = formatDafJsonRecord(rr, e, "disease" if cfg["okind"] == "DO" else "phenotype", cfg["skind"])
+                yield rr2
+      
 ########
 # Applies various transformations to a 'raw' annotation returned from the db to prepare it
 # for export to AGR. Example: AGR dates must be in rfc3339 format. See comments for specific 
 # transforms.
 # Args:
 #   a - one annotation
-#   okind - kind of annotation ontology term, "DOTerm" or "MPTerm"
-#   skind - kind of annotation subject, "SequenceFeature", "Allele", or "Genotype"
+#   okind - kind of annotation ontology term, "DO" or "MP"
+#   skind - kind of annotation subject, "gene", "allele", or "genotype"
 # Returns:
 #   The annotation, with conversions applied
 #
 geno2genes = {}   # genotype->rolled up genes index
-gene2term = {} # gene id -> set of disease or phenotype ids
 def applyConversions(a, okind, skind):
     global geno2genes
 
     # screen out "normal" phenotype annotations
     # but allow "not" disease annotations. Not sure why the alliance 
     # handles one and not the other.
-    if okind == "MPTerm" and a["qualifier"] == "normal":
+    if okind == "MP" and a["qualifier"] == "normal":
         return None
-    elif okind == "DOTerm":
+    elif okind == "DO":
         a["qualifier"] = "not" if a["qualifier"] == "NOT" else None
     ##
-    # Attach base annotations to their proper evidence records
+    # 1. Attach base annotations to their proper evidence records
+    # 2. Set evidence annot date to earliest base annotation's date
+    # 3. Collect base annotataion genotype ids
     for e in a["evidence"]:
+        #
+        if okind == "DO":
+            e["codes"] = [code2eco[e["code"]]]
+        else:
+            e["codes"] = [e["code"]]
         # Attach base annotations to the inverted evidence records they belong to
         e["baseAnnots"] = []
+        e["baseSubjectIds"] = []
+        dt = None
         for ba in a.get("baseAnnots", []):
-            if ba["publications.id"] == e["evidence.publications.id"]:
+            if ba["_annotevidence_key"] == e["_annotevidence_key"]:
                e["baseAnnots"].append(ba)
-    a["baseAnnots"] = []
-    ##
-    # MGI (and MM) store evidence as one evidence code with >= 1 ref.
-    # AGR inverts this: one reference with >= 1 evidence code.
-    ref2codes = {}
-    ref2baseAnnots = {}
-    ref2adate = {}
+               e["baseSubjectIds"].append(ba["genotypeId"])
+               if dt is None or ba["_basemodification_date"] < dt:
+                   dt = ba["_basemodification_date"]
+        if dt:
+            e["annotationDate"] = dt
+    # Now merge evidence recs having the same publication
+    prev = None
+    elist = []
     for e in a["evidence"]:
-        #
-        if okind == "DOTerm":
-            e["evidence.code.code"] = code2eco[e["evidence.code.code"]]
-        #
-        pmid = e["evidence.publications.pubMedId"]
-        mgiid = e["evidence.publications.mgiId"]
-        ref2codes.setdefault((mgiid,pmid), set()).add(e["evidence.code.code"])
-        ref2baseAnnots.setdefault((mgiid, pmid), []).extend([x["baseAnnotations.subject.primaryIdentifier"] for x in e["baseAnnots"]])
-        adate = e["evidence.annotationDate"]
-        ref2adate.setdefault((mgiid,pmid), getTimeStamp(adate))
-    ##
-    # create list of "inverted" evidence records, each having a pub id and list of evidence codes
-    a["invevidence"] = []
-    a["invbaseannots"] = []
-    for (k,es) in list(ref2codes.items()):
-        adate = ref2adate.get(k, [])
-        (mgiId, pubMedId) = k
-        p = makePubRef(pubMedId, mgiId)
-        a["invevidence"].append({ "publication" : p, "evidenceCodes" : list(es), "annotationDate" : adate })
-        #
-        baseAnnots = list(set(ref2baseAnnots[k]))
-        a["invbaseannots"].append(baseAnnots)
-    #
+        if prev and prev["_refs_key"] == e["_refs_key"]:
+            prev["baseAnnots"] += e["baseAnnots"]
+            prev["baseSubjectIds"] += e["baseSubjectIds"]
+            prev["codes"] += e["codes"]
+        else:
+            if (prev) : elist.append(prev)
+            prev = e
+    if prev:
+        elist.append(prev)
+    a["evidence"] = elist
+
+    a["baseAnnots"] = []
+    
     # object relation for genes and alleles
-    if skind == "SequenceFeature":
-        # Record for later use
-        gene2term.setdefault(a["subject.primaryIdentifier"], set()).add(a["ontologyTerm.identifier"])
-        #
-        a["objectName"] = a["subject.symbol"]
+    if skind == "gene":
+        a["objectName"] = a["subjectLabel"]
         a["objectRelation"] = {
             "objectType" : "gene",
             "associationType" : "is_implicated_in"
         }
-        setAnnotationDate(a, skind)
         for ba in a["baseAnnots"]:
             # record for later use: which genotypes roll up to this gene
-            geno2genes.setdefault(ba["baseAnnotations.subject.primaryIdentifier"], set()).add(a["subject.primaryIdentifier"])
-    elif skind == "Allele":
-        a["objectName"] = a["subject.symbol"]
+            geno2genes.setdefault(ba["genotypeId"], set()).add(a["subjectId"])
+    elif skind == "allele":
+        a["objectName"] = a["subjectLabel"]
         a["objectRelation"] = {
             "objectType" : "allele",
             "associationType" : "is_implicated_in"
         }
-        setAnnotationDate(a, skind)
-    else: # skind == "Genotype"
-        a["objectName"] = a["subject.name"]
+    else: # skind == "genotype"
+        a["objectName"] = "???"
         a["objectRelation"] = {
             "objectType" : "genotype",
             "associationType" : "is_model_of",
             # The following line is the reason genes-disease annotation must be processed first...
-            "inferredGeneAssociation": list(geno2genes.get(a["subject.primaryIdentifier"],[]))
+            "inferredGeneAssociation": list(geno2genes.get(a["subjectId"],[]))
         }
-        setAnnotationDate(a, skind)
     return a
-
-# Sets the annotation date for a gene or allele -to-disease annotation.
-# This is the min annotation date from associated base (genotype) evidence recs
-def setAnnotationDate(a, skind):
-    d = None
-    for e in a["evidence"]:
-        if d is None or (e["evidence.annotationDate"] and e["evidence.annotationDate"] < d):
-            d = e["evidence.annotationDate"]
-    for ba in a.get("baseAnnots", []):
-        bd = ba["baseAnnotations.evidence.annotationDate"]
-        if d is None or bd < d:
-            d = bd
-    a["annotationDate"] = getTimeStamp(d)
 
 #
 def buildDataProviderObject(a, kind, skind):
     if kind != "disease":
         raise RuntimeError("Cannot build data provider object for this kind: " + kind)
-    ident = a["subject.primaryIdentifier"]
-    if skind == "SequenceFeature":
+    ident = a["subjectId"]
+    if skind == "gene":
         page = "gene"
-    elif skind == "Allele":
+    elif skind == "allele":
         page = "allele"
-    elif skind == "Genotype":
+    elif skind == "genotype":
         page = "genotype"
     else:
         raise RuntimeError("Cannot build data provider object for this skind: " + skind)
@@ -322,40 +250,38 @@ def log (s):
 #    annot
 #    kind (string) Either "disease" or "phenotype"
 #
-def formatDafJsonRecord (annot, kind, skind):
+def formatDafJsonRecord (annot, evidence, kind, skind):
     #
-    annot["primaryGeneticEntityIDs"] = []
-    adate = annot["agrevidence"].pop("annotationDate", annot['annotationDate'])
-    #adate = annot['annotationDate']
+    adate = evidence['annotationDate']
     try:
       if kind == "disease":
         return stripNulls({
-            'objectId':                     annot["subject.primaryIdentifier"],
+            'objectId':                     annot["subjectId"],
             'objectName':                   annot["objectName"],
             'objectRelation':               annot["objectRelation"],
-            #'experimentalConditions':      [],
             'negation':                     annot["qualifier"],
-            'DOid':                         annot["ontologyTerm.identifier"],
-            #'with':                        [],
-            #'modifier':                    None,
-            'evidence':                     annot["agrevidence"],
-            'primaryGeneticEntityIDs':      annot["agrbaseannots"],
-            #'geneticSex':                  '',
-            'dateAssigned':                 adate,
+            'DOid':                         annot["termId"],
+            'evidence':                     {
+                "publication" : makePubRef(evidence["refPmid"], evidence["refMgiId"]),
+                "evidenceCodes" :  evidence["codes"],
+                "annotationDate" : evidence['annotationDate']
+                },
+            'primaryGeneticEntityIDs':      evidence["baseSubjectIds"],
+            'dateAssigned':                 evidence['annotationDate'],
             'dataProvider':                 [ buildDataProviderObject(annot, kind, skind) ],
         })
       else:
         # guard against data issue: MP record w/o a name. 
-        if not annot["ontologyTerm.name"]:
+        if not annot["term"]:
             return None
         #
         return stripNulls({
-            'objectId':                     annot["subject.primaryIdentifier"],
-            'phenotypeTermIdentifiers':     [{ "termId" : annot["ontologyTerm.identifier"], 'termOrder' : 1 }],
-            'phenotypeStatement':           annot["ontologyTerm.name"],
-            'evidence':                     annot["agrevidence"]['publication'],
-            'primaryGeneticEntityIDs':      annot["agrbaseannots"],
-            'dateAssigned':                 annot["annotationDate"],
+            'objectId':                     annot["subjectId"],
+            'phenotypeTermIdentifiers':     [{ "termId" : annot["termId"], 'termOrder' : 1 }],
+            'phenotypeStatement':           annot["term"],
+            'evidence':                     makePubRef(evidence["refPmid"], evidence["refMgiId"]),
+            'primaryGeneticEntityIDs':      evidence["baseSubjectIds"],
+            'dateAssigned':                 evidence["annotationDate"],
             })
     except:
         log('ERROR in annotation record: ' + str(annot))
@@ -364,11 +290,6 @@ def formatDafJsonRecord (annot, kind, skind):
 #####
 def getArgs():
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "ids",
-        nargs="*",
-        help="Specific ids to generate annotation output for."
-    )
     parser.add_argument(
         "-d", "--diseases",
         dest="doDiseases",
@@ -388,28 +309,27 @@ def getArgs():
 #####
 def main():
     args = getArgs()
-    service = MOUSEMINE
     mdo = buildMetaObject()
     print('{"metaData": %s,' % json.dumps(mdo)) 
     print(' "data"    : [')
     if args.doDiseases:
         #
         # IMPORTANT! Gene annotations must be retrieved *before* Genotype annots. 
-        geneAnnots = annotations(service, "DOTerm", "SequenceFeature", args.ids)
-        alleleAnnots = annotations(service, "DOTerm", "Allele", args.ids)
-        genotypeAnnots = annotations(service, "DOTerm", "Genotype", args.ids)
+        geneAnnots = getAnnotations(doGeneCfg)
+        alleleAnnots = getAnnotations(doAlleleCfg)
+        genotypeAnnots = getAnnotations(doGenoCfg)
         #
         for i,ga in enumerate(chain(geneAnnots, alleleAnnots, genotypeAnnots)):
             print("," if i>0 else "", json.dumps(ga, indent = 2))
     elif args.doPhenotypes:
-        geneAnnots = annotations(service, "MPTerm", "SequenceFeature", args.ids)
-        alleleAnnots = annotations(service, "MPTerm", "Allele", args.ids)
-        genotypeAnnots = annotations(service, "MPTerm", "Genotype", args.ids)
+        #
+        geneAnnots = getAnnotations(mpGeneCfg)
+        alleleAnnots = getAnnotations(mpAlleleCfg)
+        genotypeAnnots = getAnnotations(mpGenoCfg)
         #
         for i,ga in enumerate(chain(geneAnnots, alleleAnnots, genotypeAnnots)):
             print("," if i>0 else "", json.dumps(ga, indent=2))
 
     print("]}")
 
-#####
 main()  # optional geno and/or gene IDs on the cmd line to restrict query
