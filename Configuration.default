@@ -8,6 +8,8 @@ export PG_DBSERVER="mgi-adhoc"
 export PG_DBNAME="mgd"
 export PG_DBUSER="mgd_public"
 
+export FTPALLIANCE="${FTPROOT}/pub/alliance"
+
 # MouseMine service url
 export MOUSEMINEURL="https://www.mousemine.org/mousemine/service"
 #export MOUSEMINEURL="https://test.mousemine.org/mousemine/service"
