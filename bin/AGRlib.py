@@ -53,7 +53,7 @@ def buildMetaObject():
     #   of the MGI DataSource obj
     # For example, "Mouse Genome Informatics [MGI 6.07 2017-01-24]"
     release = None
-    r = sql('\nselect * from mgi_dbinfo\n')[0]
+    r = list(sql('\nselect * from mgi_dbinfo\n'))[0]
     release = r['public_version'] + " " + r['lastdump_date'].split()[0]
     return {
     "dataProvider" : buildMgiDataProviderObject(),
@@ -116,7 +116,8 @@ def getTimeStamp(s = None):
 #---------------------------------
 def sql (query) :
     sys.stderr.write("\nSQL query: %s\n" % query)
-    return db.sql(query)
+    for r in db.sql(query):
+        yield dict(r)
 
 #-----------------------------------
 
