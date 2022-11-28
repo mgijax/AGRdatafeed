@@ -44,7 +44,7 @@ qGenes = '''
 
 #
 qGeneSynonyms = '''
-    SELECT _object_key as _marker_key, synonym
+    SELECT distinct _object_key as _marker_key, synonym
     FROM MGI_Synonym
     WHERE _synonymtype_key = 1004 /* exact marker synonyms */
     '''
@@ -566,7 +566,7 @@ tGenotypeLabels = '''
       /* the genotyeps has an annotation */
       SELECT _annot_key
       FROM VOC_Annot
-      WHERE _annottype_key = 1020
+      WHERE _annottype_key = %(_annottype_key)d
       AND _object_key = g._genotype_key
       )
     '''

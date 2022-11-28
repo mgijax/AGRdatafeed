@@ -1,5 +1,5 @@
 #
-# htxMetaData.py
+# htpDataSet.py
 #
 # Dumps curated metadata for high throughput expression studies 
 # (experiments + samples).
@@ -137,7 +137,7 @@ def findUberonTerm (ageMin, ageMax) :
 #-----------------------------------
 def getStageObj (obj) :
     try:
-        u = findUberonTerm(obj["ageMin"], obj["ageMax"])
+        u = findUberonTerm(obj["agemin"], obj["agemax"])
     except:
         raise RuntimeError("Could not find Uberon age term for:" + str(obj))
 

@@ -267,12 +267,10 @@ def main(args):
     for label, q in qs:
         if label == 'gene':
             for r in sql(q):
-                r = dict(r)
                 r['soTermId'] = mcv2so[r['_mcv_term_key']]
                 id2gene[r['_marker_key']] = r
         else:
             for r in sql(q):
-                r = dict(r)
                 obj = id2gene.get(r['_marker_key'], None)
                 if obj:
                     obj.setdefault(label,[]).append(r)

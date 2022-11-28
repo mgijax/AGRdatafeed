@@ -114,21 +114,21 @@ def getAnnotations (cfg) :
 
     ak2evs = {}
     for r in sql(tAnnotEvidence % cfg + LIMIT):
-        ak2evs.setdefault(r["_annot_key"],[]).append(dict(r))
+        ak2evs.setdefault(r["_annot_key"],[]).append(r)
    
     ak2bas = {}
     if (cfg["_baseannottype_key"]):
         for r in sql(tAnnotBaseAnnots % cfg + LIMIT):
-            ak2bas.setdefault(r["_annot_key"],[]).append(dict(r))
+            ak2bas.setdefault(r["_annot_key"],[]).append(r)
 
     for r in sql(tAnnots % cfg + LIMIT):
         r = dict(r)
         r["evidence"] = ak2evs.get(r["_annot_key"],[])
         r["baseAnnots"] = ak2bas.get(r["_annot_key"],[])
         rr = applyConversions(r, cfg["okind"], cfg["skind"])
-        if (cfg["skind"] == "genotype") :
-            rr["subjectLabel"] = gk2label[r["subjectKey"]]
         if rr:
+            if (cfg["skind"] == "genotype") :
+                rr["subjectLabel"] = gk2label[r["subjectKey"]]
             for e in rr["evidence"]:
                 rr2 = formatDafJsonRecord(rr, e, "disease" if cfg["okind"] == "DO" else "phenotype", cfg["skind"])
                 yield rr2
@@ -252,7 +252,7 @@ def log (s):
 #
 def formatDafJsonRecord (annot, evidence, kind, skind):
     #
-    adate = evidence['annotationDate']
+    adate = getTimeStamp(evidence['annotationDate'])
     try:
       if kind == "disease":
         return stripNulls({
@@ -263,11 +263,10 @@ def formatDafJsonRecord (annot, evidence, kind, skind):
             'DOid':                         annot["termId"],
             'evidence':                     {
                 "publication" : makePubRef(evidence["refPmid"], evidence["refMgiId"]),
-                "evidenceCodes" :  evidence["codes"],
-                "annotationDate" : evidence['annotationDate']
+                "evidenceCodes" :  list(set(evidence["codes"])),
                 },
             'primaryGeneticEntityIDs':      evidence["baseSubjectIds"],
-            'dateAssigned':                 evidence['annotationDate'],
+            'dateAssigned':                 adate,
             'dataProvider':                 [ buildDataProviderObject(annot, kind, skind) ],
         })
       else:
@@ -281,7 +280,7 @@ def formatDafJsonRecord (annot, evidence, kind, skind):
             'phenotypeStatement':           annot["term"],
             'evidence':                     makePubRef(evidence["refPmid"], evidence["refMgiId"]),
             'primaryGeneticEntityIDs':      evidence["baseSubjectIds"],
-            'dateAssigned':                 evidence["annotationDate"],
+            'dateAssigned':                 adate,
             })
     except:
         log('ERROR in annotation record: ' + str(annot))

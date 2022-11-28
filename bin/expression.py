@@ -150,7 +150,7 @@ def getJsonObj(obj, structureName, uids):
               'whereExpressedStatement' : structureName
           },  
           'whenExpressed': {
-              'stageName': obj['stage'],
+              'stageName': 'TS%02d' % obj['stage'],
               'stageUberonSlimTerm': {'uberonTerm':ts2uberon[obj['stage']]}
           },  
           'crossReference' : {

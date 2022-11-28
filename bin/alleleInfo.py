@@ -101,7 +101,7 @@ def getJsonObj(obj):
   aors = [] # alleleObjectRelations
   if gene:
       aors.append({"objectRelation": {"associationType":"allele_of","gene":gene }})
-  if obj.has_key('construct'):
+  if 'construct' in obj:
       aors.append({"objectRelation": {"associationType":"contains","construct":obj['construct'] }})
   #
   return stripNulls({
