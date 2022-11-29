@@ -75,8 +75,19 @@ doGeneCfg = {
 doAlleleCfg = {
     "okind" : "DO",
     "skind" : "allele",
-    "_annottype_key" : 1029, # DO-Allele
+    "_annottype_key" : 1029, # DO-Allele (derived)
     "_baseannottype_key" : 1020, # DO-Genotype
+    "subj_tblname"   : "ALL_Allele",
+    "subj_keycol"    : "_allele_key",
+    "subj_labelcol"  : "symbol",
+    "_mgitype_key"   : 11, # allele
+    "voc_ldbkey"    : 191, # DO
+    }
+doAlleleDirectCfg = {
+    "okind" : "DO",
+    "skind" : "allele",
+    "_annottype_key" : 1021, # DO-Allele (direct)
+    "_baseannottype_key" : None,
     "subj_tblname"   : "ALL_Allele",
     "subj_keycol"    : "_allele_key",
     "subj_labelcol"  : "symbol",
@@ -96,7 +107,7 @@ doGenoCfg = {
     }
 
 PHENO_CFGS = [mpGeneCfg, mpAlleleCfg, mpGenoCfg]
-DISEASE_CFGS = [doGeneCfg, doAlleleCfg, doGenoCfg]
+DISEASE_CFGS = [doGeneCfg, doAlleleCfg, doAlleleDirectCfg, doGenoCfg]
 
 #
 code2eco = {
@@ -316,9 +327,10 @@ def main():
         # IMPORTANT! Gene annotations must be retrieved *before* Genotype annots. 
         geneAnnots = getAnnotations(doGeneCfg)
         alleleAnnots = getAnnotations(doAlleleCfg)
+        alleleDirectAnnots = getAnnotations(doAlleleDirectCfg)
         genotypeAnnots = getAnnotations(doGenoCfg)
         #
-        for i,ga in enumerate(chain(geneAnnots, alleleAnnots, genotypeAnnots)):
+        for i,ga in enumerate(chain(geneAnnots, alleleAnnots, alleleDirectAnnots, genotypeAnnots)):
             print("," if i>0 else "", json.dumps(ga, indent = 2))
     elif args.doPhenotypes:
         #
