@@ -571,3 +571,119 @@ tGenotypeLabels = '''
       )
     '''
 
+#--------------------------------------------------------------------------
+# High-Throughput Expression Metadata
+#--------------------------------------------------------------------------
+
+#-----------------------------------
+qHTExperiments = '''
+    SELECT 
+      a.accid as "experimentId",
+      name, 
+      et.term as "experimentType", 
+      e.description, 
+      st.term as "studyType", 
+      src.term as source, 
+      e.last_curated_date as "curationDate"
+    FROM 
+       GXD_HTExperiment e,
+       VOC_Term et,
+       VOC_Term st,
+       VOC_Term src,
+       ACC_Accession a
+    WHERE e._curationstate_key = 20475421 /* Done */
+    AND e._experimenttype_key =  et._term_key
+    AND e._studytype_key = st._term_key
+    AND e._source_key = src._term_key
+    AND e._experiment_key = a._object_key
+    AND a._mgitype_key = 42 /* ht experiment type */
+    AND a.preferred = 1
+    '''
+#-----------------------------------
+qHTSamples = '''
+    SELECT 
+      ea.accid as "experimentId", 
+      et.term as "experimentType",
+      s.name, 
+      s.age, 
+      s.agemin, 
+      s.agemax, 
+      st.term as sex, 
+      s._stage_key as stage, 
+      em.term as "structureName", 
+      ema.accid as "structureId",
+      ga.accid as "genotypeId"
+    FROM 
+      GXD_HTSample s, 
+      GXD_HTExperiment e,
+      ACC_Accession ea,
+      VOC_Term st,
+      VOC_Term em,
+      ACC_Accession ema,
+      ACC_Accession ga,
+      VOC_Term et
+    WHERE e._experiment_key = s._experiment_key
+    AND e._experimenttype_key = et._term_key
+    AND s._relevance_key = 20475450 /* Yes */
+    AND s._experiment_key = ea._object_key
+    AND ea._mgitype_key = 42 /* ht experiment type */
+    AND ea.preferred = 1
+    AND s._sex_key = st._term_key
+    AND s._emapa_key = em._term_key
+    AND s._emapa_key = ema._object_key
+    AND ema._mgitype_key = 13
+    AND ema._logicaldb_key = 169 /* EMAPA */
+    AND ema.preferred = 1
+    AND s._genotype_key = ga._object_key
+    AND ga._mgitype_key = 12 
+    AND ga._logicaldb_key = 1
+    AND ga.preferred = 1
+    '''
+
+#-----------------------------------
+qHTPmids = '''
+    SELECT 
+      p.value as pmid,
+      a.accid as "experimentId"
+    FROM
+      GXD_HTExperiment e,
+      MGI_Property p,
+      ACC_Accession a
+    WHERE p._propertytype_key = 1002
+    AND p._object_key = e._experiment_key
+    AND p._propertyterm_key = 20475430 /* PMID */
+    AND e._experiment_key = a._object_key
+    AND a._mgitype_key = 42 /* ht experiment type */
+    AND a.preferred = 1
+    '''
+
+qHTPmid2Mgi = '''
+    SELECT 
+      a.accid as pmid, a2.accid as mgiid
+    FROM
+      ACC_Accession a,
+      ACC_Accession a2
+    WHERE a._logicaldb_key = 29 /* Pubmed */
+    AND a._mgitype_key = 1
+    AND a.preferred = 1
+    AND a._object_key = a2._object_key
+    AND a2._mgitype_key = 1
+    AND a2._logicaldb_key = 1
+    AND a2.prefixpart = 'MGI:'
+    AND a2.preferred = 1
+    '''
+
+#-----------------------------------
+qHTVariables = '''
+    SELECT
+      a.accid as "experimentId", t.term as variable
+    FROM
+      GXD_HtExperimentVariable v,
+      ACC_Accession a,
+      VOC_Term t
+    WHERE v._experiment_key = a._object_key 
+    AND a._mgitype_key = 42 /* ht experiment type */
+    AND a.preferred = 1
+    AND v._term_key = t._term_key
+    AND t.term != 'Not Applicable'
+    '''
