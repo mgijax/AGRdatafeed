@@ -10,8 +10,6 @@ import json
 import argparse
 from AGRlib import stripNulls, buildMetaObject, makeOneOfConstraint, sql, getTimeStamp
 
-MOUSEMINE     = os.environ["MOUSEMINEURL"]
-
 AGR_REF_CATS = [
     "Research Article",
     "Review Article",

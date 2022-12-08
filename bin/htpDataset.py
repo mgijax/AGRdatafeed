@@ -164,8 +164,8 @@ def getSampleJsonObj (obj) :
 #-----------------------------------
 GEO_re = re.compile('^E-GEOD-(\d+)$')
 def getExptJsonObj(obj):
-    # If it's a GEO experiment, also include the GEO id. We should get this from MouseMine,
-    # but MM doesn't have this. So construct it from the AE version of the ID. 
+    # If it's a GEO experiment, also include the GEO id. 
+    # Construct it from the AE version of the ID. 
     # Example: E-GEOD-33885 (ArrayExpress) -> GSE33885 (GEO)
     pid = "ArrayExpress:" + obj["experimentId"]
     xrefs = [{ "id" : pid, "pages": ["htp/dataset"] }]

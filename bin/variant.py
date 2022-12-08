@@ -9,7 +9,6 @@ import subprocess
 import json
 from AGRlib import stripNulls, buildMetaObject, makeOneOfConstraint, sql
 
-MOUSEMINE     = os.environ["MOUSEMINEURL"]
 GLOBALTAXONID = os.environ["GLOBALTAXONID"]
 
 chr2accid = {
