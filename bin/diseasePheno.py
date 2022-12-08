@@ -116,21 +116,25 @@ code2eco = {
 def getAnnotations (cfg) :
     LIMIT = "" # " limit 10"
     
+    # cache genotype labels
     gk2label = {}
     if (cfg["skind"] == "genotype") :
         for r in sql(tGenotypeLabels % cfg):
             label = "%s [background:] %s" % (r["alleles"],r["strain"])
-            gk2label[r["_genotype_key"]] = label
+            gk2label[r["_genotype_key"]] = label.replace("\n", " ")
 
+    # cache evidence
     ak2evs = {}
     for r in sql(tAnnotEvidence % cfg + LIMIT):
         ak2evs.setdefault(r["_annot_key"],[]).append(r)
    
+    # cache base annotations
     ak2bas = {}
     if (cfg["_baseannottype_key"]):
         for r in sql(tAnnotBaseAnnots % cfg + LIMIT):
             ak2bas.setdefault(r["_annot_key"],[]).append(r)
 
+    # get the annotations, attached cached info
     for r in sql(tAnnots % cfg + LIMIT):
         r = dict(r)
         r["evidence"] = ak2evs.get(r["_annot_key"],[])
@@ -138,7 +142,7 @@ def getAnnotations (cfg) :
         rr = applyConversions(r, cfg["okind"], cfg["skind"])
         if rr:
             if (cfg["skind"] == "genotype") :
-                rr["subjectLabel"] = gk2label[r["subjectKey"]]
+                rr["objectName"] = gk2label[r["subjectKey"]]
             for e in rr["evidence"]:
                 rr2 = formatDafJsonRecord(rr, e, "disease" if cfg["okind"] == "DO" else "phenotype", cfg["skind"])
                 yield rr2
@@ -221,7 +225,7 @@ def applyConversions(a, okind, skind):
             "associationType" : "is_implicated_in"
         }
     else: # skind == "genotype"
-        a["objectName"] = "???"
+        a["objectName"] = a["subjectLabel"]
         a["objectRelation"] = {
             "objectType" : "genotype",
             "associationType" : "is_model_of",
@@ -323,7 +327,6 @@ def main():
     print(' "data"    : [')
     if args.doDiseases:
         #
-        # IMPORTANT! Gene annotations must be retrieved *before* Genotype annots. 
         geneAnnots = getAnnotations(doGeneCfg)
         alleleAnnots = getAnnotations(doAlleleCfg)
         alleleDirectAnnots = getAnnotations(doAlleleDirectCfg)
