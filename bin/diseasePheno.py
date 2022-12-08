@@ -3,7 +3,6 @@
 # Create JSON file describing genotype-disease annotations for AGR data ingest.
 # Usage:
 #       python diseasePheno.py -d > MGI_0.6.2_diseaseAnnotations.json
-# Pulls data from MouseMine.
 # Writes JSON to stdout.
 # See JSON specs at:
 #    https://github.com/alliance-genome/agr_schemas/blob/development/disease/diseaseModelAnnotation.json

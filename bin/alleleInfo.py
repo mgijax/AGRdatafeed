@@ -79,18 +79,7 @@ def formatXrefs(obj):
 # conforming to the spec.
 #
 def getJsonObj(obj):
-  ###
-  # MouseMine is loading things as allele synonyms that should not be included. 
-  # Until this is fixed, weed out the unwanted ones here. Basically, the allele's
-  # symbol and name are both being included and need to be screen out.
-  # Note that in mousemine, allele.name includes the gene's name followed by a semicolon followed
-  # by the allele's name.
-  nn = obj["name"].rsplit(';')[-1].strip()
-  syns = set()
-  for s in obj["synonyms"]:
-      if s != obj["symbol"] and s != nn:
-          syns.add(s)
-  syns = list(map(insertSups, list(syns)))
+  syns = list(map(insertSups, obj["synonyms"]))
   syns.sort()
   ###
   isTgAllele = obj["alleleType"] == "Transgenic"

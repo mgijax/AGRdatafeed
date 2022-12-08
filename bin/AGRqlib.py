@@ -44,9 +44,13 @@ qGenes = '''
 
 #
 qGeneSynonyms = '''
-    SELECT distinct _object_key as _marker_key, synonym
-    FROM MGI_Synonym
-    WHERE _synonymtype_key = 1004 /* exact marker synonyms */
+    SELECT DISTINCT ml._marker_key, ml.label as synonym
+    FROM mrk_label ml, mrk_marker m
+    WHERE ml._marker_key = m._marker_key
+    AND ml.labeltype in ('MS','MN','MY')
+    AND ml.labeltypename != 'human synonym'
+    AND ml.label != m.symbol
+    AND ml.label != m.name
     '''
 
 #
@@ -306,27 +310,6 @@ qEmapaTermsAndParents = '''
     AND ca.preferred = 1
     '''
 
-# old mousemine expression query for comparison
-'''<query
-    model="genomic"
-    view="
-        GXDExpression.assayId
-        GXDExpression.assayType
-        GXDExpression.feature.primaryIdentifier
-        GXDExpression.stage
-        GXDExpression.structure.identifier
-        GXDExpression.publication.mgiId
-        GXDExpression.publication.pubMedId"
-    sortOrder="GXDExpression.assayId asc GXDExpression.structure.identifier asc GXDExpression.stage asc"
-    constraintLogic="A and (B or (C and D)) and E"
-    >
-      <constraint path="GXDExpression.detected" code="A" op="=" value="true"/>
-      <constraint path="GXDExpression.genotype.hasMutantAllele" code="B" op="=" value="false"/>
-      <constraint path="GXDExpression.assayType" code="C" op="=" value="In situ reporter (knock in)"/>
-      <constraint path="GXDExpression.genotype.zygosity" code="D" op="=" value="ht"/>
-    </query>
-  '''
-
 #
 qMutantGenotypes = '''
     SELECT g._genotype_key
@@ -407,6 +390,7 @@ qGxdExpression = '''
     AND a.preferred = 1
     /* assayType */
     AND ex._assaytype_key = t._assaytype_key
+    /* geneId */
     AND ex._marker_key = fa._object_key
     AND fa._mgitype_key = 2
     AND fa._logicaldb_key = 1

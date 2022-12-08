@@ -60,7 +60,7 @@ def getJsonObj (g, includedAlleles) :
         #return None
         pass
     #
-    name = "%s [background:] %s" % (g["alleles"], g["strain"])
+    name = ("%s [background:] %s" % (g["alleles"], g["strain"])).replace("\n", " ")
     return {
       "primaryID" : g["genotypeId"],
       "subtype" : "genotype",
