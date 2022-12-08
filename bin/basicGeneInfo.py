@@ -1,4 +1,3 @@
-#!/usr/bin/env python2.7 
 #
 # basicGeneInfo.py
 #
@@ -9,33 +8,11 @@
 # Usage:
 # To dump all genes and pseudogenes:
 #       % python basicGeneInfo.py > FILE
-# To dump specific genes/pseudogenes:
-#       % python basicGeneInfo.py MGI:96449 MGI:96677 MGI:2685845
 # 
-# This script uses MouseMine webservices API.
-# Implementation approach. A fair amount of detail is needed for each gene.
-# In the db, this info requires traversing to subobjects (and beyond).
-# One option is to specify 'jsonobjects' as the return type, and the server
-# will put things together for you in nice object form. My experience is that
-# this breaks the server for very large queries like these.
-#
-# This leads to the approach taken here, which is to break up the query 
-# into simple(r) pieces each of which returns a stream of parts sorted by object id.
-# The streams are exectuted in parallel, then merged based on object id.
-# 
-# Example: for each gene we need its synonyms (among many other parts). These are
-# stored in a separate table, and a given gene can have zero or more synonyms.
-# In the one-giant-query approach, we'd tack on another join. 
-# Because a given gene can have 0 synonyms, the join would have to be outer.
-# In the parallel streams approach, we add another query that returns each synonym with
-# its gene's ID, sorted on that ID. All the other streams are also composed of pieces that
-# returns streams of parts sorted by gene ID.
-# The bottom line is that the server can execute the collection of simple queries much faster and
-# with less memory then the one-giant-query approach.
-#
 # Author: Joel Richardson
 #
 import sys
+from subprocess import Popen
 import argparse
 import json
 import heapq
@@ -76,6 +53,37 @@ XREF_DBS = {
     "Entrez Gene": "NCBI_Gene",
     "Ensembl Gene Model": "ENSEMBL"
 }
+
+#-----------------------------------
+# Goes to PantherDB to get the download file, then parses the file to generate a mapping from MGI ids to Panther IDs.
+# Returns the map.
+PANTHERURL="ftp://ftp.pantherdb.org/ortholog/current_release/RefGenomeOrthologs.tar.gz"
+def getPantherIds () :
+    def parseMouseId (s) :
+        idPart = s.split("|")[1]
+        return "MGI:" + idPart.split("=")[-1]
+
+    def parseLine(line):
+        parts = line.split()
+        pthrId = parts[-1]
+        if parts[0].startswith('MOUSE'):
+            return (parseMouseId(parts[0]), pthrId)
+        elif parts[1].startswith('MOUSE'):
+            return (parseMouseId(parts[1]), pthrId)
+
+    cmd = 'curl -o "RefGenomeOrthologs.tar.gz" -z "RefGenomeOrthologs.tar.gz" "%s"' % PANTHERURL
+    sp = Popen(cmd, shell=True)
+    rc = sp.wait()
+    cmd = 'tar -xvf RefGenomeOrthologs.tar.gz'
+    sp = Popen(cmd, shell=True)
+    rc = sp.wait()
+    mgi2panther = {}
+    with open('RefGenomeOrthologs','r') as fd:
+        for line in fd:
+            res = parseLine(line[:-1])
+            if res:
+                mgi2panther[res[0]] = res[1]
+    return mgi2panther
 
 #-----------------------------------
 
@@ -125,9 +133,9 @@ def formatXrefs(obj):
         p = x.get('proteinId','')
         if p:
             xrefs.add(("UniProtKB", p))
-    pid = obj.get('pantherId', [None])[0]
+    pid = obj['pantherId']
     if pid:
-      xrefs.add(('PANTHER', pid['homologues.crossReferences.identifier']))
+      xrefs.add(('PANTHER', pid))
     xrefs = list(xrefs)
     xrefs.sort()
     # new xref format for 1.0.0.0. Includes 2 parts: the id, and a list of 
@@ -243,6 +251,8 @@ def main(args):
         #('pantherId',       mousePantherIds),
     ]
 
+    mgi2panther = getPantherIds()
+
     # set of markers with phenotype annotations
     hasPheno = set()
     for r in sql(qGeneHasPhenotype):
@@ -268,6 +278,7 @@ def main(args):
         if label == 'gene':
             for r in sql(q):
                 r['soTermId'] = mcv2so[r['_mcv_term_key']]
+                r['pantherId'] = mgi2panther.get(r['markerId'], None)
                 id2gene[r['_marker_key']] = r
         else:
             for r in sql(q):
