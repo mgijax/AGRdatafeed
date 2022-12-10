@@ -671,3 +671,80 @@ qHTVariables = '''
     AND v._term_key = t._term_key
     AND t.term != 'Not Applicable'
     '''
+
+#--------------------------------------------------------------------------
+# CONSTRUCTS
+#--------------------------------------------------------------------------
+
+# query MGI_Relationship for "expressed_component" (1004) and "has_driver" (1006)
+# Arg: category key
+tConstructRelationships = '''
+    SELECT 
+        r._relationship_key,
+        r._category_key,
+        al._allele_key,
+        aa.accid as allele,
+        al.symbol as alleleSymbol,
+        mm._organism_key,
+        am.accid as gene,
+        mm.symbol as genesymbol,
+        rr.term as relationship,
+        q.term as qualifier,
+        e.abbreviation as evidencecode,
+        r._refs_key
+    FROM
+        MGI_Relationship r
+        LEFT JOIN ACC_Accession am 
+            /* Have to outer join to get the MGI id since not all of these will be mouse genes. */
+            ON r._object_key_2 = am._object_key
+            AND am._mgitype_key = 2
+            AND am._logicaldb_key = 1
+            AND am.preferred = 1
+        JOIN VOC_Term q
+            ON r._qualifier_key = q._term_key
+        JOIN VOC_Term e
+            ON r._evidence_key = e._term_key
+        JOIN VOC_Term rr
+            ON r._relationshipterm_key = rr._term_key
+        JOIN ACC_Accession aa
+            ON r._object_key_1 = aa._object_key
+            AND aa._mgitype_key = 11
+            AND aa._logicaldb_key = 1
+            AND aa.preferred = 1
+        JOIN ALL_Allele al
+            ON r._object_key_1 = al._allele_key
+        JOIN MRK_Marker mm
+            ON r._object_key_2 = mm._marker_key
+    WHERE r._category_key = %s
+    ORDER BY r._relationship_key
+    '''
+
+# query for relationship properties. Will get attached as list to relationship.
+# Arg: category key
+tConstructProperties = '''
+    SELECT r._relationship_key, t.term as property, p.value
+    FROM MGI_Relationship r
+      JOIN MGI_Relationship_Property p
+        ON r._relationship_key = p._relationship_key
+      JOIN VOC_Term t
+        ON p._propertyname_key = t._term_key
+    WHERE r._category_key = %s
+    ORDER BY r._relationship_key, p.sequenceNum
+    '''
+
+# query for non-mouse drivers used in recombinase alleles
+qConstructNonMouseDrivers = '''
+    SELECT a.accid, r._object_key_1 as _allele_key
+    FROM
+        MGI_Relationship r,
+        MRK_Marker m,
+        ACC_Accession a
+    WHERE
+        r._category_key = 1006
+    AND r._object_key_2 = m._marker_key
+    AND m._organism_key != 1
+    AND a._object_key = m._marker_key
+    AND a._mgitype_key = 2
+    AND a._logicaldb_key in (64,47,172) /* HGNC, RGD, ZFIN */
+    '''
+
