@@ -74,7 +74,9 @@ def getPantherIds () :
     cmd = 'curl -o "RefGenomeOrthologs.tar.gz" -z "RefGenomeOrthologs.tar.gz" "%s"' % PANTHERURL
     sp = Popen(cmd, shell=True)
     rc = sp.wait()
-    cmd = 'tar -xvf RefGenomeOrthologs.tar.gz'
+    # tar outputs file names to stdout. Redirect to /dev/null so these don't end up
+    # in the json file.
+    cmd = 'tar -xvf RefGenomeOrthologs.tar.gz > /dev/null'
     sp = Popen(cmd, shell=True)
     rc = sp.wait()
     mgi2panther = {}
