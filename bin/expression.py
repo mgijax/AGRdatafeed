@@ -166,7 +166,7 @@ def getJsonObj(obj, structureName, uids):
 def main():
   noMapping = set()
   #
-  exprData = getExpressionData(ids)
+  exprData = getExpressionData()
   print('{ "metaData" : %s, ' % json.dumps(buildMetaObject()))
   print('  "data" : [')
   for i,r in enumerate(exprData):

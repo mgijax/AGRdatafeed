@@ -292,4 +292,4 @@ mousePantherIds = '''
     </query>
     '''
 
-main(parseCmdLine())
+main()
