@@ -13,7 +13,7 @@ import time
 import types
 import argparse
 
-from AGRlib import stripNulls, buildMetaObject, makeOneOfConstraint, sql, makePubRef
+from AGRlib import stripNulls, buildMetaObject, sql, makePubRef
 from AGRqlib import qSubmittedAlleleIds, qSubmittedGenotypes, qGenotypeAllelePair
 
 GLOBALTAXONID = os.environ["GLOBALTAXONID"]
@@ -21,19 +21,6 @@ GLOBALTAXONID = os.environ["GLOBALTAXONID"]
 # IDs of genotypes to omit (the "Not applicable" and the "Not specified" genotypes)
 SKIP = ["MGI:2166309", "MGI:2166310" ]
 
-#
-def parseCmdLine():
-    parser = argparse.ArgumentParser(description='Dumps genotype information to a JSON file.')
-
-    parser.add_argument(
-      'identifiers', 
-      metavar='ids',
-      nargs='*',
-      help='Specific MGI ids to dump.')
-
-    args = parser.parse_args()
-    return args
-  
 bracketed_re = re.compile(r'<([^>]+)>')
 def htmlify (s) :
   parts = bracketed_re.split(s)
@@ -76,10 +63,6 @@ def getJsonObj (g, includedAlleles) :
 
 # Main prog. Build the query, run it, and output 
 def main():
-  args = parseCmdLine()
-  ids = args.identifiers
-  xtra = makeOneOfConstraint('Genotype.primaryIdentifier', ids)
-
   # Process Genotype-AllelePairs. Build index from genotype id to list of component (allele+state)
   id2components = {}
   toDelete = set(SKIP)

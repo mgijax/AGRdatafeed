@@ -60,14 +60,6 @@ def buildMetaObject():
     "dateProduced" : currentDate,
     "release" : release
     }
-#----------------------------------
-#
-def makeOneOfConstraint(path, vals):
-  cnst = ''
-  if vals:
-    cvals = ''.join(['<value>%s</value>' % i for i in vals])
-    cnst = '<constraint path="%s" op="ONE OF">%s</constraint>' % (path,cvals)
-  return cnst
 
 #----------------------------------
 # Returns a PublicationRef which contains a publication id (required) and an optional xref
@@ -119,21 +111,3 @@ def sql (query) :
     for r in db.sql(query):
         yield dict(r)
 
-#-----------------------------------
-
-if __name__ == "__main__":
-    obj =  \
-    {   "keep1" : 23,
-        "lose1" : None,
-        "lose2" : [],
-        "keep2" : [23, 64, 'hike', [],
-                    { 'keep3': 78, 'lose3': [], 'lose4':None }],
-        "prefix MGI:" : "MGI:12345",
-        "no prefix"   : "MGI:foo",
-        "prefix MGI: 2" : [ { "foo": "MGI:23456"} ]
-    }
-    print("Before")
-    print(json.dumps(obj, sort_keys=True, indent=2, separators=(',', ': ') ))
-    print("After cleansing")
-    stripNulls(obj)
-    print(json.dumps(obj, sort_keys=True, indent=2, separators=(',', ': ') ))

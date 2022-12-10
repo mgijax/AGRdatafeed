@@ -5,7 +5,7 @@ import json
 import argparse
 
 # nonstandard dependencies
-from AGRlib import stripNulls, buildMetaObject, sql, makeOneOfConstraint, makePubRef
+from AGRlib import stripNulls, buildMetaObject, sql, makePubRef
 from AGRqlib import qEmapaTerms, qEmapaTermsAndParents
 
 #-----------------------------------

@@ -10,15 +10,6 @@ export PG_DBUSER="mgd_public"
 
 export FTPALLIANCE="${FTPROOT}/pub/alliance"
 
-# For generating a sample file (-s option)
-#  MGI:96677	 Kit, your basic all American protein coding gene
-#  MGI:96449	 Igh-7, a gene segment
-#  MGI:2685845	 Adgrd2-ps, a pseudogene
-#  MGI:5695867	 Twsn (twisty nose), a heritable phenotypic marker of unknown location
-#  MGI:87982	 Akp1, syntenic on chromosome 1
-export SAMPLEIDS="MGI:96677 MGI:96449 MGI:2685845 MGI:5695867 MGI:87982"
-export SAMPLEALLELEIDS="MGI:1856157"
-
 # Mouse taxon id
 export TAXONID=10090
 export GLOBALTAXONID="NCBITaxon:${TAXONID}"

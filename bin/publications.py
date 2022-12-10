@@ -8,7 +8,7 @@ import sys
 import os
 import json
 import argparse
-from AGRlib import stripNulls, buildMetaObject, makeOneOfConstraint, sql, getTimeStamp
+from AGRlib import stripNulls, buildMetaObject, sql, getTimeStamp
 from AGRqlib import qReferences
 
 AGR_REF_CATS = [

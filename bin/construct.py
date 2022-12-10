@@ -16,7 +16,7 @@
 import sys
 import os
 import json
-from AGRlib import stripNulls, buildMetaObject, makeOneOfConstraint, sql
+from AGRlib import stripNulls, buildMetaObject, sql
 from AGRqlib import qSubmittedAlleleIds, tConstructRelationships, tConstructProperties, qConstructNonMouseDrivers
 
 EXPRESSES_cat_key = 1004

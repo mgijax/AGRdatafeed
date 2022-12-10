@@ -19,7 +19,7 @@ import heapq
 import itertools
 import re
 import os
-from AGRlib import stripNulls, buildMetaObject, sql, makeOneOfConstraint
+from AGRlib import stripNulls, buildMetaObject, sql
 from AGRqlib import qMcvTerms, qGenes, qGeneHasPhenotype, qGeneHasImpc, qGeneSynonyms, qGeneHasExpression, qGeneHasExpressionImage, qGeneLocations, qGeneProteinIds, qGeneXrefs, qGeneSecondaryIds
 
 #-----------------------------------
@@ -92,7 +92,6 @@ def getPantherIds () :
 taxon         = os.environ["TAXONID"]
 GLOBALTAXONID = os.environ["GLOBALTAXONID"]
 MYGENEURL     = os.environ["MYGENEURL"]
-SAMPLEIDS     = os.environ["SAMPLEIDS"].split()
 MGD_OLD_PREFIX= os.environ["MGD_OLD_PREFIX"]
 
 # For AGR, old style MGD ids must be given a distinct global prefix (we're using 'MGD_old:') and have 
@@ -213,33 +212,9 @@ def getJsonObj(obj):
             "geneSynopsis"      : formatDescription(obj),
             "soTermId"          : obj["soTermId"],
           })
-      #except:
-          #sys.stderr.write('ERROR in getJsonObj. obj=' + str(obj) + '\n')
-          #sys.exit(1)
+
 #
-def parseCmdLine():
-    parser = argparse.ArgumentParser(description='Dumps basic gene information to a JSON file.')
-
-    parser.add_argument(
-      '-s','--sample',
-      action='store_true',
-      default=False,
-      help='Generate sample output',
-      required=False)
-
-    parser.add_argument(
-      'identifiers', 
-      metavar='ids',
-      nargs='*',
-      help='Specific MGI ids to dump.')
-
-    args = parser.parse_args()
-    if args.sample:
-      args.identifiers.extend(SAMPLEIDS)
-    return args
-  
-#
-def main(args):
+def main():
     ##
     qs = [
         ('gene',            qGenes),

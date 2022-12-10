@@ -39,7 +39,7 @@ import types
 import argparse
 
 # nonstandard dependencies
-from AGRlib import stripNulls, buildMetaObject, sql, makeOneOfConstraint, makePubRef
+from AGRlib import stripNulls, buildMetaObject, sql, makePubRef
 from emapa_lib import id2emapa, id2pids, ancestorsAt
 from AGRqlib import qGxdExpression
 
@@ -115,7 +115,7 @@ def log(msg):
 #-----------------------------------
 # Returns unique-ified expression assay results. 
 #
-def getExpressionData(ids):
+def getExpressionData():
   log('Getting expression data...')
   prev = None
   qcount = 0
@@ -162,24 +162,9 @@ def getJsonObj(obj, structureName, uids):
     log('ERROR in expression object: ' + str(obj))
     raise
 
-#
-def parseCmdLine():
-    parser = argparse.ArgumentParser(description='Dumps basic allele information to a JSON file.')
-
-    parser.add_argument(
-      'identifiers', 
-      metavar='ids',
-      nargs='*',
-      help='Specific MGI ids to dump.')
-
-    args = parser.parse_args()
-    return args
-  
 # Main prog. Build the query, run it, and output 
 def main():
   noMapping = set()
-  args = parseCmdLine()
-  ids = args.identifiers
   #
   exprData = getExpressionData(ids)
   print('{ "metaData" : %s, ' % json.dumps(buildMetaObject()))

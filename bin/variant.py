@@ -7,7 +7,7 @@ import os
 import re
 import subprocess
 import json
-from AGRlib import stripNulls, buildMetaObject, makeOneOfConstraint, sql
+from AGRlib import stripNulls, buildMetaObject, sql
 
 GLOBALTAXONID = os.environ["GLOBALTAXONID"]
 

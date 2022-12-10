@@ -22,7 +22,7 @@ import os
 import argparse
 
 #
-from AGRlib import stripNulls, buildMetaObject, makeOneOfConstraint, sql
+from AGRlib import stripNulls, buildMetaObject, sql
 from AGRqlib import qAlleles, qAlleleSynonyms, qExpressors
 
 #-----------------------------------
@@ -30,11 +30,7 @@ GLOBALTAXONID = os.environ["GLOBALTAXONID"]
 
 #-----------------------------------
 #
-def getAlleles(ids):
-    qopts = {
-      'xtraConstraint': makeOneOfConstraint('Allele.feature.primaryIdentifier', ids)
-    }
-
+def getAlleles():
     # Query for alleles that have expressed component 
     expressors = set()
     for r in sql(qExpressors):
@@ -105,25 +101,10 @@ def getJsonObj(obj):
     "description" : obj["molecularNote"]
   })
 
-#
-def parseCmdLine():
-    parser = argparse.ArgumentParser(description='Dumps basic allele information to a JSON file.')
-
-    parser.add_argument(
-      'identifiers', 
-      metavar='ids',
-      nargs='*',
-      help='Specific MGI ids to dump.')
-
-    args = parser.parse_args()
-    return args
-  
 # Main prog. Build the query, run it, and output 
 def main():
-  args = parseCmdLine()
-  ids = args.identifiers
   #
-  query = getAlleles(ids)
+  query = getAlleles()
   print('{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(), indent=2))
   first = True
   for a in query:
