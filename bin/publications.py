@@ -9,6 +9,7 @@ import os
 import json
 import argparse
 from AGRlib import stripNulls, buildMetaObject, makeOneOfConstraint, sql, getTimeStamp
+from AGRqlib import qReferences
 
 AGR_REF_CATS = [
     "Research Article",
@@ -41,36 +42,6 @@ MGI2AGR_REF_TYPES = {
     "JAX Notes" : "Other",
     }
 
-REFS_Q = '''
-    SELECT 
-        b.title,
-        b.authors,
-        b.journal,
-        b.vol,
-        b.issue,
-        b.pgs,
-        b.date,
-        b.modification_date,
-        bc.citation,
-        bc.mgiid,
-        bc.pubmedid,
-        b.abstract,
-        bc.relevanceterm,
-        bc.referencetype,
-        bb.book_au,
-        bb.book_title,
-        bb.place,
-        bb.publisher,
-        bb.series_ed
-    FROM
-        BIB_Refs b
-        LEFT OUTER JOIN BIB_Books bb ON b._refs_key = bb._refs_key
-        JOIN BIB_Citation_cache bc ON b._refs_key = bc._refs_key
-
-    /* optional WHERE clause */
-    %s 
-
-    '''
 
 def getExchangeObj (r) :
     pmid = 'PMID:%s' % r['pubmedid']
@@ -156,38 +127,20 @@ def getArgs():
         default="all",
         help="Which publications to output. all=all pubs in long form; pubmed=pubmed pubs in exchange form; nonpubmed=Non-pubmed pubs in long form."
         )
-    parser.add_argument(
-        "-s",
-        dest="doSample",
-        action="store_true",
-        default=False,
-        help="Just do a small sample for dev purpposes."
-        )
-    parser.add_argument(
-        "-i",
-        dest="mgiId",
-        default=None,
-        help="Just run for this MGI publication id (for debugging)."
-        )
     return parser.parse_args()
 
 def main () :
     opts = getArgs()
-    whereClause = ''
-    if opts.mgiId:
-        whereClause = "WHERE bc.mgiid = '%s'" % opts.mgiId
     #
     print('{\n  "metaData": %s,\n  "data": [' % json.dumps(buildMetaObject(), indent=2))
     #
     n = 0
-    for r in sql(REFS_Q % whereClause):
+    for r in sql(qReferences):
         obj = getObj(r, opts.which)
         if obj:
             if n > 0: sys.stdout.write(",")
             print(json.dumps(obj, indent=2))
             n += 1
-            if opts.doSample and n > 100:
-                break
     #
     print(']}')
 

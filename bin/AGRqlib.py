@@ -748,3 +748,33 @@ qConstructNonMouseDrivers = '''
     AND a._logicaldb_key in (64,47,172) /* HGNC, RGD, ZFIN */
     '''
 
+#--------------------------------------------------------------------------
+# REFERENCES
+#--------------------------------------------------------------------------
+
+qReferences = '''
+    SELECT 
+        b.title,
+        b.authors,
+        b.journal,
+        b.vol,
+        b.issue,
+        b.pgs,
+        b.date,
+        b.modification_date,
+        bc.citation,
+        bc.mgiid,
+        bc.pubmedid,
+        b.abstract,
+        bc.relevanceterm,
+        bc.referencetype,
+        bb.book_au,
+        bb.book_title,
+        bb.place,
+        bb.publisher,
+        bb.series_ed
+    FROM
+        BIB_Refs b
+        LEFT OUTER JOIN BIB_Books bb ON b._refs_key = bb._refs_key
+        JOIN BIB_Citation_cache bc ON b._refs_key = bc._refs_key
+    '''
