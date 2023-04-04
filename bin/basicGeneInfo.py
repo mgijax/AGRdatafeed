@@ -89,9 +89,7 @@ def getPantherIds () :
 
 #-----------------------------------
 
-taxon         = os.environ["TAXONID"]
 GLOBALTAXONID = os.environ["GLOBALTAXONID"]
-MYGENEURL     = os.environ["MYGENEURL"]
 MGD_OLD_PREFIX= os.environ["MGD_OLD_PREFIX"]
 
 # For AGR, old style MGD ids must be given a distinct global prefix (we're using 'MGD_old:') and have 
@@ -225,7 +223,6 @@ def main():
         ('location',        qGeneLocations),
         ('proteinIds',      qGeneProteinIds),
         ('xrefs',           qGeneXrefs),
-        #('pantherId',       mousePantherIds),
     ]
 
     mgi2panther = getPantherIds()
@@ -272,24 +269,5 @@ def main():
         print(json.dumps(getJsonObj(obj), indent=2))
         first = False
     print(']\n}')
-
-mousePantherIds = '''
-    <query
-      name="BGI_mousePantherIds"
-      model="genomic"
-      view="
-        Gene.primaryIdentifier
-        Gene.homologues.crossReferences.identifier
-        "
-      sortOrder="Gene.primaryIdentifier asc"
-      >
-      %(extraConstraint)s
-      <constraint path="Gene.organism.taxonId" op="=" value="10090"/>
-      <constraint path="Gene.homologues.dataSets.name" op="=" value="Panther data set"/>
-      <constraint path="Gene.homologues.type" op="!=" value="paralogue"/>
-      <constraint path="Gene.dataSets.name" op="=" value="Mouse Gene Catalog from MGI"/>
-      <constraint path="Gene.homologues.homologue.organism.taxonId" op="=" value="9606"/>
-    </query>
-    '''
 
 main()
