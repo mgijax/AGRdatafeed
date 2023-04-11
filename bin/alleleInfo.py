@@ -23,7 +23,7 @@ import argparse
 
 #
 from AGRlib import stripNulls, buildMetaObject, sql
-from AGRqlib import qAlleles, qAlleleSynonyms, qExpressors
+from AGRqlib import qAlleles, qAlleleSynonyms, qAllelesWithConstructs
 
 #-----------------------------------
 GLOBALTAXONID = os.environ["GLOBALTAXONID"]
@@ -32,9 +32,9 @@ GLOBALTAXONID = os.environ["GLOBALTAXONID"]
 #
 def getAlleles():
     # Query for alleles that have expressed component 
-    expressors = set()
-    for r in sql(qExpressors):
-        expressors.add(r['_allele_key'])
+    allelesWithConstructs = set()
+    for r in sql(qAllelesWithConstructs):
+        allelesWithConstructs.add(r['_allele_key'])
 
     # Query allele synonyms, build index of id -> synonyms
     aid2syns = {}
@@ -50,7 +50,7 @@ def getAlleles():
       # "construct". At the Alliance, constructs must have an ID, but at MGI they don't (they're not objects).
       # So we create a fake ID for it. These are not displayed and are not used to create links.
       # Constructs are dumped separately. Here we just need the ID
-      if r['drivenBy'] or ak in expressors:
+      if ak in allelesWithConstructs:
           r['construct'] = aid + "_con"
       #
       yield r

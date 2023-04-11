@@ -107,7 +107,9 @@ def getTimeStamp(s = None):
 
 #---------------------------------
 def sql (query) :
-    sys.stderr.write("\nSQL query: %s\n" % query)
+    server = db.get_sqlServer()
+    database = db.get_sqlDatabase()
+    sys.stderr.write(f"\nSQL query ({server}.{database}): {query}\n")
     for r in db.sql(query):
         yield dict(r)
 

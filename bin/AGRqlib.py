@@ -159,18 +159,12 @@ qAlleles = '''
       t.term as "alleleType",
       n.note as "molecularNote",
       ma.accid as "markerId",
-      mc.directterms as "markerType",
-      d.symbol as "drivenBy"
+      mc.directterms as "markerType"
     FROM
       ALL_Allele a
         LEFT JOIN MGI_Note n
           ON a._allele_key = n._object_key
-          AND n._notetype_key = 1021 /* molecular */
-        LEFT JOIN MGI_Relationship r
-          ON r._category_key = 1006 /* allele-driver */
-          AND a._allele_key = r._object_key_1
-          LEFT JOIN MRK_Marker d
-            ON r._object_key_2 = d._marker_key,
+          AND n._notetype_key = 1021, /* molecular */
       ACC_Accession aa,
       VOC_Term t,
       ACC_Accession ma,
@@ -192,10 +186,10 @@ qAlleles = '''
     AND mc.qualifier = 'D'
    '''
 #
-qExpressors = '''
+qAllelesWithConstructs = '''
     SELECT distinct _object_key_1 as _allele_key
     FROM MGI_Relationship
-    WHERE _category_key = 1004 /* expresses component */
+    WHERE _category_key in (1004,1006) /* expresses component, has driver gene */
     '''
 
 #
@@ -686,6 +680,7 @@ tConstructRelationships = '''
         aa.accid as allele,
         al.symbol as alleleSymbol,
         mm._organism_key,
+	mm._marker_key,
         am.accid as gene,
         mm.symbol as genesymbol,
         rr.term as relationship,
@@ -733,19 +728,20 @@ tConstructProperties = '''
     '''
 
 # query for non-mouse drivers used in recombinase alleles
-qConstructNonMouseDrivers = '''
-    SELECT a.accid, r._object_key_1 as _allele_key
+qConstructNonMouseComponents = '''
+    SELECT distinct a.accid, m._marker_key
     FROM
         MGI_Relationship r,
         MRK_Marker m,
         ACC_Accession a
     WHERE
-        r._category_key = 1006
+        r._category_key in (1004,1006)
     AND r._object_key_2 = m._marker_key
     AND m._organism_key != 1
     AND a._object_key = m._marker_key
     AND a._mgitype_key = 2
-    AND a._logicaldb_key in (64,47,172) /* HGNC, RGD, ZFIN */
+    AND a._logicaldb_key in (64,47,172,225) /* HGNC, RGD, ZFIN, Xenbase */
+    AND a.preferred = 1
     '''
 
 #--------------------------------------------------------------------------

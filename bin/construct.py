@@ -17,7 +17,7 @@ import sys
 import os
 import json
 from AGRlib import stripNulls, buildMetaObject, sql
-from AGRqlib import qSubmittedAlleleIds, tConstructRelationships, tConstructProperties, qConstructNonMouseDrivers
+from AGRqlib import qSubmittedAlleleIds, tConstructRelationships, qConstructNonMouseComponents
 
 EXPRESSES_cat_key = 1004
 DRIVER_cat_key = 1006
@@ -31,55 +31,34 @@ def loadSubmittedAlleles () :
         aids.add(a["mgiid"])
     return aids
     
-ak2nmdId = {} # allele_key -> non-mouse-driver ID
-def loadNonMouseDrivers () :
-    for r in sql(qConstructNonMouseDrivers):
-        ak2nmdId[r['_allele_key']] = r['accid']
+mk2nmdId = {} # marker key -> non-mouse ID
+def loadNonMouseGeneIds () :
+    for r in sql(qConstructNonMouseComponents):
+        mk2nmdId[r['_marker_key']] = r['accid']
 
 def loadRelationship (key) :
     rels = []
-    # read the properties and create index from rel key -> prop obj
-    rk2props = {}
-    for rp in sql(tConstructProperties % key):
-        rk2props.setdefault(rp['_relationship_key'], {})[rp['property']] = rp['value']
-    # read the relationships and add properties
+    # read the relationships 
     for r in sql(tConstructRelationships % key):
         rk = r['_relationship_key']
-        if rk in rk2props:
-            r['properties'] = rk2props[rk]
         rels.append(r)
     return rels
 
 def rel2constrComp (r) :
+    symbol = r["genesymbol"]
+    gid = r["gene"]
+    if gid is None:
+        gid = mk2nmdId.get(r["_marker_key"],None)
+        if gid :
+            if gid.startswith('ZDB'):
+                gid = 'ZFIN:' + gid
+            elif gid.startswith('XB-'):
+                gid = 'Xenbase:' + gid
+
     if r["_category_key"] == EXPRESSES_cat_key:
         reln = "expresses"
-        symbol = r["genesymbol"]
-        try:
-            if r["relationship"] == "expresses_an_orthologous_gene":
-                symbol = r["properties"]["Non-mouse_Gene_Symbol"]
-                organism = r["properties"]["Non-mouse_Organism"]
-                if organism == "human":
-                    gid = r["properties"].get("Non-mouse_HGNC_Gene_ID",None)
-                elif organism == "rat":
-                    gid = r["properties"].get("Non-mouse_RGD_Gene_ID",None)
-                elif organism == "zebrafish":
-                    gid = "ZFIN:" + r["properties"].get("Non-mouse_ZFIN_Gene_ID",None)
-                else:
-                    gid = None
-            else:
-                gid = r["gene"]
-        except:
-            log("Error processing: " + str(r))
-            return None
     elif r["_category_key"] == DRIVER_cat_key:
         reln = "is_regulated_by"
-        symbol = r["genesymbol"]
-        if r["_organism_key"] == "1":
-            gid = r["gene"]
-        else:
-            gid = ak2nmdId.get(r["_allele_key"], None)
-            if gid and gid.startswith('ZDB'):
-                gid = 'ZFIN:' + gid
     else:
         raise RuntimeError("Internal error: unknown _category_key: " + str(r))
 
@@ -90,7 +69,7 @@ def rel2constrComp (r) :
     }
     
 def main () :
-    loadNonMouseDrivers()
+    loadNonMouseGeneIds()
     submittedIds = loadSubmittedAlleles()
     aid2rels = {}
     for r in loadRelationship(EXPRESSES_cat_key):
