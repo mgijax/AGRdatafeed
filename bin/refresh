@@ -13,7 +13,7 @@ LOGFILE=""
 OUTPUT_DIR="."
 RELEASE_COUNT=""
 DO_ALL="true"
-VALIDATOR_DIR=""
+VALIDATOR_DIR="../${AGR_SCHEMA}"
 DO_GENERATE=""
 DO_VALIDATE=""
 DO_REPORT=""
@@ -28,7 +28,7 @@ PYTHON2="python2.7"
 # ---------------------
 function usage {
   logit "
-Usage: $0 -s schema_release -R software_release -c dump_count [-d output_directory][-p gaepdf][-g][-v dir][-r][-u file]
+Usage: $0 -s schema_release -R software_release -c dump_count [-d output_directory][-p gaepdf][-g][-v][-r][-u file]
 Generates files for upload to the Alliance. Typical invocation:
 	$0 -s 1.0.0.7 -R 5.1.0 -c 3 -d . -g -v /home/jer/work/agr/datafeed/agr_schemas -r
 This generates and validates all upload files.
@@ -60,7 +60,7 @@ Options:
 
 You need to specify at least one of the following options to actually do anything:
 -g      Generate data files specified in -p option.
--v dir	Validate data files specified in -p option. Argument = directory where validator is installed.
+-v    	Validate data files specified in -p option.
 -r      Report stats on files specified in -p option.
 -D      Distribute files specified in -p option to the Alliance ftp directory
 -u file Upload files specified in -p option to the Alliance submission endpoint. 
@@ -275,8 +275,6 @@ function parseCommandLine {
 	    DO_DISTRIB="true"
 	    ;;
 	-v) 
-	    shift
-	    VALIDATOR_DIR="$1"
 	    DO_VALIDATE="true"
 	    ;;  
 	-u) 
