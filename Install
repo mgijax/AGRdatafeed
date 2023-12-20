@@ -1,0 +1,32 @@
+
+source Configuration
+
+logit "Removing old curation schema installation: ${AGR_SCHEMA}"
+rm -fr ${AGR_SCHEMA}
+
+logit "Cloning ${AGR_SCHEMA} from ${AGR_SCHEMA_URL}"
+git clone "${AGR_SCHEMA_URL}"
+checkexit
+
+logit "Checking out ${AGR_SCHEMA_VERSION}"
+pushd ${AGR_SCHEMA}
+git checkout "${AGR_SCHEMA_VERSION}"
+checkexit
+
+popd
+
+cd bin
+rm -fr venv
+
+logit "Creating virtual environment."
+${PYTHON} -m venv venv
+checkexit
+
+source venv/bin/activate
+export PYTHONPATH=.:$PYTHONPATH
+
+logit "Installing jsonschema"
+pip install jsonschema
+pip install strict_rfc3339
+
+deactivate

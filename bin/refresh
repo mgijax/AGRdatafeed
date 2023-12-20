@@ -11,8 +11,6 @@ fi
 # Initialize vars
 LOGFILE=""
 OUTPUT_DIR="."
-SCHEMA_RELEASE=""
-RELEASE_VERSION=""
 RELEASE_COUNT=""
 DO_ALL="true"
 VALIDATOR_DIR=""
@@ -30,17 +28,18 @@ PYTHON2="python2.7"
 # ---------------------
 function usage {
   logit "
-Usage: $0 -s schema_release -c dump_count [-d output_directory][-p gaepdf][-g][-v dir][-r][-u file]
+Usage: $0 -s schema_release -R software_release -c dump_count [-d output_directory][-p gaepdf][-g][-v dir][-r][-u file]
 Generates files for upload to the Alliance. Typical invocation:
-	$0 -s 1.0.0.7 -c 3 -d . -g -v /home/jer/work/agr/datafeed/agr_schemas -r
-This will do the same thing but only dump the phenotype and allele info files:
-	$0 -s 1.0.0.7 -c 3 -d . -g -v /home/jer/work/agr/datafeed/agr_schemas -p p,a
+	$0 -s 1.0.0.7 -R 5.1.0 -c 3 -d . -g -v /home/jer/work/agr/datafeed/agr_schemas -r
+This generates and validates all upload files.
+This command will do the same thing, but only generate the phenotype and allele info files:
+	$0 -s 1.0.0.7 -R 5.1.0 -c 3 -d . -g -v /home/jer/work/agr/datafeed/agr_schemas -p p,a
 Options:
 -h	Print this message and exit.
 -C file	Sources the specified config file.
 -l file Specifies a log file. By default, log messages are sent to stdout.
--s ver	Specifies the alliance schema release number, eg, 1.0.0.7. Required.
--R ver  Specifies the alliance software release, e.g. 2.3
+-s ver	(required) Specifies the alliance schema release number, eg, 1.0.0.7. Required.
+-R ver  (required) Specifies the alliance software release, e.g. 2.3
 -c n	Specifies the update count for this schema version (1, 2, 3, ...).  Optional.
 -d dir	Specifies the parent directory where the output directory will be created.
 	Default = current working directory.
@@ -165,9 +164,12 @@ function validate {
   #
   # ASSUMES the validor is checked out to the correct schema version!
   #
-  ${PYTHON2} ${VALIDATOR_DIR}/bin/agr_validate.py -s ${VALIDATOR_DIR}/${vschema} -d ${FILE}
+
+  source venv/bin/activate
+  python ${VALIDATOR_DIR}/bin/agr_validate.py -s ${VALIDATOR_DIR}/${vschema} -d ${FILE}
   checkExit 
   logit "Validated: ${FILE}"
+  deactivate
 }
 # ---------------------
 # Report stats
@@ -192,7 +194,7 @@ function upload {
   ftype=$1
   aftype=$2
   setFile ${ftype}
-  logit "Uploading file to AGR: ${RELEASE_VERSION}_${aftype}_MGI=@${FILE} ..."
+  logit "Uploading file to AGR: ${AGR_RELEASE_VERSION}_${aftype}_MGI=@${FILE} ..."
   token=`cat ${TOKEN_FILE}`
   if [[ ${NO_RUN} ]] ; then
     return
@@ -200,7 +202,7 @@ function upload {
   curl \
       -H "Authorization: Bearer ${token}" \
       -X POST "https://fms.alliancegenome.org/api/data/submit" \
-      -F "${RELEASE_VERSION}_${aftype}_MGI=@${FILE}"
+      -F "${AGR_RELEASE_VERSION}_${aftype}_MGI=@${FILE}"
   checkExit
   logit "Uploaded: ${FILE}"
 }
@@ -296,11 +298,11 @@ function parseCommandLine {
 	    ;;  
 	-s) 
 	    shift
-	    SCHEMA_RELEASE="$1"
+	    AGR_SCHEMA_VERSION="$1"
 	    ;;  
 	-R) 
 	    shift
-	    RELEASE_VERSION="$1"
+	    AGR_RELEASE_VERSION="$1"
 	    ;;  
 	-c) 
 	    shift
@@ -317,10 +319,10 @@ function parseCommandLine {
     done
     # ---------------------------------------
     # Check parameters
-    if [[ ! ${SCHEMA_RELEASE} ]] ; then
+    if [[ ! ${AGR_SCHEMA_VERSION} ]] ; then
       die "Please specify a schema version with -s."
     fi
-    if [[ ! ${RELEASE_VERSION} ]] ; then
+    if [[ ! ${AGR_RELEASE_VERSION} ]] ; then
       die "Please specify a release version with -R."
     fi
 }
@@ -349,11 +351,11 @@ function main {
     #
     parseCommandLine $*
     #
-    ODIR="${OUTPUT_DIR}/MGI_${SCHEMA_RELEASE}"
+    ODIR="${OUTPUT_DIR}/MGI_${AGR_SCHEMA_VERSION}"
     if [[ ${RELEASE_COUNT} ]] ; then
 	ODIR="${ODIR}_${RELEASE_COUNT}"
     fi
-    ROOT="${ODIR}/MGI_${SCHEMA_RELEASE}"
+    ROOT="${ODIR}/MGI_${AGR_SCHEMA_VERSION}"
 
     # ---------------------------------------
     logit
