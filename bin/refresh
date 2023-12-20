@@ -38,8 +38,6 @@ Options:
 -h	Print this message and exit.
 -C file	Sources the specified config file.
 -l file Specifies a log file. By default, log messages are sent to stdout.
--s ver	(required) Specifies the alliance schema release number, eg, 1.0.0.7. Required.
--R ver  (required) Specifies the alliance software release, e.g. 2.3
 -c n	Specifies the update count for this schema version (1, 2, 3, ...).  Optional.
 -d dir	Specifies the parent directory where the output directory will be created.
 	Default = current working directory.
@@ -293,14 +291,6 @@ function parseCommandLine {
 	-d) 
 	    shift
 	    OUTPUT_DIR="$1"
-	    ;;  
-	-s) 
-	    shift
-	    AGR_SCHEMA_VERSION="$1"
-	    ;;  
-	-R) 
-	    shift
-	    AGR_RELEASE_VERSION="$1"
 	    ;;  
 	-c) 
 	    shift
