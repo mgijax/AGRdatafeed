@@ -9,8 +9,9 @@ fi
 
 # ---------------------
 # Initialize vars
-LOGFILE=""
-OUTPUT_DIR="."
+#LOGFILE=""
+#OUTPUT_DIR="."
+#TOKEN_FILE=""
 RELEASE_COUNT=""
 DO_ALL="true"
 VALIDATOR_DIR="../${AGR_SCHEMA}"
@@ -19,28 +20,30 @@ DO_VALIDATE=""
 DO_REPORT=""
 DO_UPLOAD=""
 DO_DISTRIB=""
-TOKEN_FILE=""
 NO_RUN=""
 PYTHON="/opt/python3.7/bin/python3"
-# the agr_validator requires python2.7
-PYTHON2="python2.7"
 
 # ---------------------
 function usage {
-  logit "
+  echo "
 Usage: $0 -s schema_release -R software_release -c dump_count [-d output_directory][-p gaepdf][-g][-v][-r][-u file]
 Generates files for upload to the Alliance. Typical invocation:
-	$0 -s 1.0.0.7 -R 5.1.0 -c 3 -d . -g -v /home/jer/work/agr/datafeed/agr_schemas -r
+	$0 -d . -g -v /home/jer/work/agr/datafeed/agr_schemas -r
 This generates and validates all upload files.
 This command will do the same thing, but only generate the phenotype and allele info files:
-	$0 -s 1.0.0.7 -R 5.1.0 -c 3 -d . -g -v /home/jer/work/agr/datafeed/agr_schemas -p p,a
+	$0 -d . -g -v /home/jer/work/agr/datafeed/agr_schemas -p p,a
+Current env settings:
+    AGR_SCHEMA_VERSION=${AGR_SCHEMA_VERSION}
+    AGR_RELEASE_VERSION=${AGR_RELEASE_VERSION}
+    OUTPUT_DIR=${OUTPUT_DIR}
+    LOGFILE=${LOGFILE}
+    TOKEN_FILE=${TOKEN_FILE}
 Options:
 -h	Print this message and exit.
--C file	Sources the specified config file.
--l file Specifies a log file. By default, log messages are sent to stdout.
+-l file Specifies a log file. By default, log messages are sent to stdout. Overrides LOG_FILE
 -c n	Specifies the update count for this schema version (1, 2, 3, ...).  Optional.
 -d dir	Specifies the parent directory where the output directory will be created.
-	Default = current working directory.
+	Default = current working directory. Overrides OUTPUT_DIR.
 -p pts	Specify which part(s) to run. Argument is a comma-separated list (no spaces) of any of the following:
 	g	Basic gene info
 	a	Allele info
@@ -53,7 +56,6 @@ Options:
 	d	Disease annotations
 	f	GFF3 gene models
         r       Publications and resources
-        t       Genome Assembly
 	If no -p option is provided, all parts are run.
 
 You need to specify at least one of the following options to actually do anything:
@@ -61,8 +63,7 @@ You need to specify at least one of the following options to actually do anythin
 -v    	Validate data files specified in -p option.
 -r      Report stats on files specified in -p option.
 -D      Distribute files specified in -p option to the Alliance ftp directory
--u file Upload files specified in -p option to the Alliance submission endpoint. 
-	Argument is the file containing the DQM access token.
+-u      Upload files specified in -p option to the Alliance submission endpoint. 
 
 Debugging:
 -N	No execute. Skips actually running commands; just prints what it would do.
@@ -164,6 +165,7 @@ function validate {
   #
 
   source venv/bin/activate
+  # NOTE: do not use $PYTHON here! In the virt env, must just use "python"!
   python ${VALIDATOR_DIR}/bin/agr_validate.py -s ${VALIDATOR_DIR}/${vschema} -d ${FILE}
   checkExit 
   logit "Validated: ${FILE}"
@@ -257,11 +259,6 @@ function parseCommandLine {
 	    usage
 	    exit 0
 	    ;;
-	-C)
-	    shift
-	    logit "Sourcing file: $1"
-	    source "$1"
-	    ;;
 	-l)
 	    shift
 	    LOGFILE="$1"
@@ -276,8 +273,6 @@ function parseCommandLine {
 	    DO_VALIDATE="true"
 	    ;;  
 	-u) 
-	    shift
-	    TOKEN_FILE="$1"
 	    DO_UPLOAD="true"
 	    ;;  
 	-r)
@@ -327,12 +322,12 @@ function doParts {
     doPart "c" "construct" "construct.py" "ingest/construct/constructMetaData.json" "" "CONSTRUCT"
     doPart "y" "AGM" "genotype.py" "ingest/affectedGenomicModel/affectedGenomicModelMetaData.json" "primaryID" "AGM"
     doPart "e" "expression" "expression.py" "ingest/expression/wildtypeExpressionMetaDataDefinition.json" '"geneId"' "EXPRESSION"
-    doPart "h" "htExperiment" "htpDataset.py -d experiments" "ingest/htp/dataset/datasetMetaDataDefinition.json" '"experimentId"' "HTPDATASET"
-    doPart "h" "htSample" "htpDataset.py -d samples" "ingest/htp/datasetSample/datasetSampleMetaDataDefinition.json" '"experimentId"' "HTPDATASAMPLE"
+    doPart "h" "htExperiment" "htpDataset.py -d experiments" "ingest/htp/dataset/datasetMetaDataDefinition.json" '"datasetId"' "HTPDATASET"
+    doPart "h" "htSample" "htpDataset.py -d samples" "ingest/htp/datasetSample/datasetSampleMetaDataDefinition.json" '"sampleTitle"' "HTPDATASAMPLE"
     doPart "p" "phenotype" "diseasePheno.py -p" "ingest/phenotype/phenotypeMetaDataDefinition.json" '"objectId"' "PHENOTYPE"
     doPart "d" "disease" "diseasePheno.py -d" "ingest/disease/diseaseMetaDataDefinition.json" '"DOid"' "DAF"
     doPart "f" "GFF" "http://www.informatics.jax.org/downloads/mgigff3/MGI.agr.gff3.gz" "" "curie=" "GFF"
-    doPart "t" "assembly" "" "" "" "FASTA"
+    #doPart "t" "assembly" "" "" "" "FASTA"
 }
 
 function main {

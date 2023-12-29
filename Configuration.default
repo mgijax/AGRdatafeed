@@ -9,12 +9,20 @@ export PG_DBNAME="mgd"
 export PG_DBUSER="mgd_public"
 export PG_1LINE_PASSFILE=""
 
-AGR_SCHEMA="agr_schemas"
-AGR_SCHEMA_URL="https://github.com/alliance-genome/agr_schemas"
+export AGR_SCHEMA="agr_schemas"
+export AGR_SCHEMA_URL="https://github.com/alliance-genome/agr_schemas"
 export AGR_SCHEMA_VERSION="1.0.2.2"
 export AGR_RELEASE_VERSION="5.0.0"
 
 export FTPALLIANCE="${FTPROOT}/pub/alliance"
+
+export OUTPUT_DIR="."
+export TOKEN_FILE="~/.DQM_UPLOAD_TOKEN"
+export LOGFILE=""
+
+###################
+# Probably don't need to edit anything below this line...
+###################
 
 # Mouse taxon id
 export GLOBALTAXONID="NCBITaxon:10090"
