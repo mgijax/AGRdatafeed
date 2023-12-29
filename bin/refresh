@@ -26,6 +26,9 @@ PYTHON="/opt/python3.7/bin/python3"
 # ---------------------
 function usage {
   echo "
+
+AGRdatafeed: for sending data to the Alliance public site
+
 Usage: $0 -s schema_release -R software_release -c dump_count [-d output_directory][-p gaepdf][-g][-v][-r][-u file]
 Generates files for upload to the Alliance. Typical invocation:
 	$0 -d . -g -v /home/jer/work/agr/datafeed/agr_schemas -r
