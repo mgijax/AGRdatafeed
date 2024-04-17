@@ -1,7 +1,7 @@
 
 source Configuration
 
-logit "Removing old curation schema installation: ${AGR_SCHEMA}"
+logit "Removing old schema installation: ${AGR_SCHEMA}"
 rm -fr ${AGR_SCHEMA}
 
 logit "Cloning ${AGR_SCHEMA} from ${AGR_SCHEMA_URL}"
