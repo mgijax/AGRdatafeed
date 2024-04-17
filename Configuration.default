@@ -11,8 +11,8 @@ export PG_1LINE_PASSFILE=""
 
 export AGR_SCHEMA="agr_schemas"
 export AGR_SCHEMA_URL="https://github.com/alliance-genome/agr_schemas"
-export AGR_SCHEMA_VERSION="1.0.2.2"
-export AGR_RELEASE_VERSION="5.0.0"
+export AGR_SCHEMA_VERSION="1.0.2.4"
+export AGR_RELEASE_VERSION="7.2.0"
 
 export FTPALLIANCE="${FTPROOT}/pub/alliance"
 

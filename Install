@@ -10,7 +10,7 @@ checkexit
 
 logit "Checking out ${AGR_SCHEMA_VERSION}"
 pushd ${AGR_SCHEMA}
-git checkout "${AGR_SCHEMA_VERSION}"
+git checkout "release-${AGR_SCHEMA_VERSION}"
 checkexit
 
 popd
@@ -26,7 +26,7 @@ source venv/bin/activate
 export PYTHONPATH=.:$PYTHONPATH
 
 logit "Installing jsonschema"
-pip install jsonschema
+pip install jsonschema==4.17.3
 pip install strict_rfc3339
 
 deactivate

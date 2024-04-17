@@ -21,7 +21,6 @@ DO_REPORT=""
 DO_UPLOAD=""
 DO_DISTRIB=""
 NO_RUN=""
-PYTHON="/opt/python3.7/bin/python3"
 
 # ---------------------
 function usage {
