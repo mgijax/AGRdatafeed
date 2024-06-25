@@ -621,6 +621,7 @@ qHTSamples = '''
 #-----------------------------------
 qHTPmids = '''
     SELECT 
+      distinct
       p.value as pmid,
       a.accid as "experimentId"
     FROM

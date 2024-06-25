@@ -220,6 +220,7 @@ function distrib {
   fi
   cp ${FILE} ${FTPALLIANCE}/${BASENAME}
   chmod 666 ${FTPALLIANCE}/${BASENAME}
+  gzip -f ${FTPALLIANCE}/${BASENAME}
 }
 
 # ---------------------------------------
