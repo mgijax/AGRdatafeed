@@ -13,7 +13,6 @@ fi
 #OUTPUT_DIR="."
 #TOKEN_FILE=""
 RELEASE_COUNT=""
-DO_ALL="true"
 VALIDATOR_DIR="../${AGR_SCHEMA}"
 DO_GENERATE=""
 DO_VALIDATE=""
@@ -231,7 +230,7 @@ function doPart {
   vschema="$4"
   grepfor="$5"
   allianceftype="$6"
-  if [[ ${DO_ALL} || " ${PARTS[*]} " == *" ${part} "* ]]; then
+  if [[ " ${PARTS[*]} " == *" ${part} "* ]]; then
       if [[ ${DO_GENERATE} ]] ; then
 	  generate "${ftype}" "${script}"
       fi
@@ -254,6 +253,7 @@ function doPart {
 
 # ---------------------------------------
 function parseCommandLine {
+    PARTS="g a v c y e h p d f"
     # Process command line args
     until [ -z "$1" ] 
     do
@@ -284,7 +284,6 @@ function parseCommandLine {
 	-p)
 	    shift
 	    PARTS=(${1//,/ })
-	    DO_ALL=""
 	    ;;
 	-d) 
 	    shift
