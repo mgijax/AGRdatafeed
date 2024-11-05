@@ -78,14 +78,24 @@ def getExperiments () :
         yield r
 
 #-----------------------------------
+
+errTags = set()
 def getCatTags (obj) :
-    vs = [ obj["studyType"] ] 
+    if obj["studyType"] == "Baseline and WT vs. Mutant":
+        vs = ["Baseline", "WT vs. Mutant"]
+    else:
+        vs = [ obj["studyType"] ] 
     vs += [ v["variable"] for v in obj["variables"]]
     vs = list(map(lambda x: TAG_MAP.get(x, x), vs))
+    vs2 = []
     for x in vs:
         if not x in TAGS:
-            sys.stderr.write('Tag not recognized: %s\n' % x)
-    return vs
+            if not x in errTags:
+                sys.stderr.write('Tag not recognized: %s\n' % x)
+                errTags.add(x)
+        else:
+            vs2.append(x)
+    return vs2
 
 #-----------------------------------
 def getSex (obj) :
