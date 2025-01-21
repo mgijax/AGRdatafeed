@@ -4,7 +4,7 @@ then
 fi
 source ${MGICONFIG}/master.config.sh
 
-export PG_DBSERVER="bhmgidb07ld.jax.org"
+export PG_DBSERVER="bhmgidb07lp.jax.org"
 export PG_DBNAME="pub"
 export PG_DBUSER="mgd_public"
 export PG_1LINE_PASSFILE=""
