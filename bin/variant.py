@@ -75,6 +75,10 @@ def getJsonObj(r) :
   if vtype == "SO:1000035":
       vtype = r["type"] = "SO:0000667"
   #
+  if r["chromosome"] == 'XY':
+      log("Changed XY to X for allele " + r["allele_id"])
+      r["chromosome"] = 'X'
+  #    
   rr = stripNulls({
     "alleleId": r["allele_id"],
     "assembly" : r["build"],

@@ -27,12 +27,12 @@ function usage {
 
 AGRdatafeed: for sending data to the Alliance public site
 
-Usage: $0 -s schema_release -R software_release -c dump_count [-d output_directory][-p gaepdf][-g][-v][-r][-u file]
-Generates files for upload to the Alliance. Typical invocation:
-	$0 -d . -g -v /home/jer/work/agr/datafeed/agr_schemas -r
+Usage: $0 [-c dump_count] [-d output_directory][-p gaepdf][-g][-v][-u]
+Generates files for upload to the Alliance. Example invocation:
+	$0 -g -v
 This generates and validates all upload files.
 This command will do the same thing, but only generate the phenotype and allele info files:
-	$0 -d . -g -v /home/jer/work/agr/datafeed/agr_schemas -p p,a
+	$0 -g -v -p p,a
 Current env settings:
     AGR_SCHEMA_VERSION=${AGR_SCHEMA_VERSION}
     AGR_RELEASE_VERSION=${AGR_RELEASE_VERSION}
