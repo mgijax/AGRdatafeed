@@ -17,7 +17,7 @@ export AGR_RELEASE_VERSION="8.2.0"
 export FTPALLIANCE="${FTPROOT}/pub/alliance"
 
 export OUTPUT_DIR="${DATALOADSOUTPUT}/mgi/AGRdatafeed"
-export TOKEN_FILE="~/.DQM_UPLOAD_TOKEN"
+export TOKEN_FILE="${HOME}/.DQM_UPLOAD_TOKEN"
 export LOGFILE=""
 
 ###################

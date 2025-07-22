@@ -200,7 +200,7 @@ function upload {
   if [[ ${NO_RUN} ]] ; then
     return
   fi
-  curl \
+  curl --fail-with-body \
       -H "Authorization: Bearer ${token}" \
       -X POST "https://fms.alliancegenome.org/api/data/submit" \
       -F "${AGR_RELEASE_VERSION}_${aftype}_MGI=@${FILE}"
