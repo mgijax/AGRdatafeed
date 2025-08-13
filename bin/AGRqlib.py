@@ -774,4 +774,5 @@ qReferences = '''
         BIB_Refs b
         LEFT OUTER JOIN BIB_Books bb ON b._refs_key = bb._refs_key
         JOIN BIB_Citation_cache bc ON b._refs_key = bc._refs_key
+            AND bc.jnumid is not null
     '''
