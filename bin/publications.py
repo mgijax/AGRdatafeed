@@ -42,9 +42,9 @@ MGI2AGR_REF_TYPES = {
     "JAX Notes" : "Other",
     }
 
+def log(s):
+    sys.stderr.write(s + "\n")
 
-def getExchangeObj (r) :
-    pmid = 'PMID:%s' % r['pubmedid']
 # Args:
 #    r - A reference record from the database
 #    mode - One of all, pubmed, nonpubmed
@@ -52,6 +52,9 @@ def getExchangeObj (r) :
 #    object or None
 #
 def getObj (r, which) :
+    if r['pubmedid'] and not r['pubmedid'].isdigit():
+        log('Skipping publication because of bad PubMed id: ' + str(r))
+        return None
     pmid = 'PMID:%s' % r['pubmedid']
     primaryId = pmid if r['pubmedid'] else r['mgiid']
     #
