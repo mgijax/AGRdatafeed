@@ -57,7 +57,7 @@ XREF_DBS = {
 #-----------------------------------
 # Goes to PantherDB to get the download file, then parses the file to generate a mapping from MGI ids to Panther IDs.
 # Returns the map.
-PANTHERURL="ftp://ftp.pantherdb.org/ortholog/current_release/RefGenomeOrthologs.tar.gz"
+PANTHERURL="https://data.pantherdb.org/ftp/ortholog/current_release/RefGenomeOrthologs.tar.gz"
 def getPantherIds () :
     def parseMouseId (s) :
         idPart = s.split("|")[1]
