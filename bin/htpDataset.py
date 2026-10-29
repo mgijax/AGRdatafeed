@@ -68,8 +68,8 @@ def getVariables():
 def getSamples():
     eid2samples = {}
     for r in sql(qHTSamples):
-        rkey = (r["name"],r["age"],r["sex"],r["structureId"])
-        eid2samples.setdefault(r['experimentId'], {})[rkey] = r
+        r["id"] = r["experimentId"] + "_" + r["name"].replace(" ","_")
+        eid2samples.setdefault(r["experimentId"], []).append(r)
     return eid2samples
 
 #-----------------------------------
@@ -122,7 +122,7 @@ def getHTdata (kind):
     eid2vars = getVariables()
     for e in getExperiments():
         eid = e['experimentId']
-        e['samples'] = (eid2samples.get(eid,{}).values())
+        e['samples'] = eid2samples.get(eid,[])
         e['variables'] = eid2vars.get(eid,[])
         e['references'] = eid2refs.get(eid,[])
         e['curationDate'] = getTimeStamp(e['curationDate'])
@@ -159,6 +159,7 @@ def getStageObj (obj) :
 #-----------------------------------
 def getSampleJsonObj (obj) :
     return stripNulls({
+        "sampleId" : { "primaryId" : obj["id"] },
         "sampleTitle" : obj["name"],
         "datasetIds" : [ "ArrayExpress:" + obj["experimentId"] ],
         "assayType" : getAssayType(obj["experimentType"]),
