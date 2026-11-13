@@ -95,6 +95,8 @@ def getCatTags (obj) :
                 errTags.add(x)
         else:
             vs2.append(x)
+    if len(vs2) == 0:
+        vs2.append("unclassified")
     return vs2
 
 #-----------------------------------
@@ -149,13 +151,15 @@ def findUberonTerm (ageMin, ageMax) :
 def getStageObj (obj) :
     try:
         u = findUberonTerm(obj["agemin"], obj["agemax"])
+        return {
+            "stageName" : "TS" + str(obj["stage"]),
+            "stageUberonSlimTerm": {"uberonTerm":u}
+        }
     except:
-        raise RuntimeError("Could not find Uberon age term for:" + str(obj))
+        return {
+            "stageName" : "TS" + str(obj["stage"]),
+        }
 
-    return {
-        "stageName" : "TS" + str(obj["stage"]),
-        "stageUberonSlimTerm": {"uberonTerm":u}
-    }
 #-----------------------------------
 def getSampleJsonObj (obj) :
     return stripNulls({
